@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #020617; /* slate-950 */
+}
+
+/* Keep the round-label column and member header visible while scrolling a wide board. */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
