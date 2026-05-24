@@ -141,8 +141,8 @@ export function DraftBoard({ draftId }: { draftId: string }) {
 
   return (
     <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Header (pr clears the fixed theme toggle in the top-right corner) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pr-12">
         <div>
           <Link href="/" className="text-xs text-slate-500 hover:text-slate-300">
             Big Board
@@ -193,7 +193,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
       )}
 
       {/* Status banner */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 light:bg-slate-900">
         {pending ? (
           <span className="text-sm text-slate-300">
             {canEdit
@@ -327,7 +327,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                           isOnClock
                             ? "bg-emerald-500/15 ring-2 ring-inset ring-emerald-500"
                             : pick
-                              ? "bg-slate-900/40"
+                              ? "bg-slate-900/40 light:bg-slate-900"
                               : ""
                         }`}
                       >

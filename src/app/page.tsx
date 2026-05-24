@@ -21,7 +21,7 @@ export default function Home() {
           Create a draft
         </Link>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 light:bg-slate-900">
           <h2 className="mb-3 text-sm font-medium text-slate-300">
             Join an existing draft
           </h2>
