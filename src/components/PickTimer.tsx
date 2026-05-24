@@ -36,7 +36,7 @@ export function PickTimer({
 
   // No limit: show elapsed time on the clock.
   if (seconds == null) {
-    return <span className="tabular-nums font-semibold text-slate-300">{fmt(elapsed)}</span>;
+    return <span className="tabular-nums font-semibold text-emerald-400">{fmt(elapsed)}</span>;
   }
 
   const remaining = seconds - elapsed;
@@ -53,7 +53,7 @@ export function PickTimer({
   return (
     <span
       className={`tabular-nums font-semibold ${
-        remaining <= 10 ? "text-amber-300" : "text-slate-100"
+        remaining <= 10 ? "text-amber-300" : "text-emerald-400"
       }`}
     >
       {fmt(remaining)}

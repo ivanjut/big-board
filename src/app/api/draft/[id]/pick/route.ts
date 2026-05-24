@@ -42,7 +42,7 @@ export async function POST(
 
   const { data: player } = await sb
     .from("players")
-    .select("id,name,position")
+    .select("id,name,position,team")
     .eq("id", playerId)
     .single();
   if (!player) return NextResponse.json({ error: "Player not found." }, { status: 404 });
@@ -57,6 +57,7 @@ export async function POST(
     player_id: player.id,
     player_name: player.name,
     player_position: player.position,
+    player_team: player.team,
   });
   if (insErr) {
     // Unique violation -> player already drafted, or this pick was just taken.

@@ -30,7 +30,7 @@ export async function GET(
 
   const { data: picks } = await sb
     .from("picks")
-    .select("pick_number,round,slot,player_id,player_name,player_position")
+    .select("pick_number,round,slot,player_id,player_name,player_position,player_team")
     .eq("draft_id", id)
     .order("pick_number");
 
@@ -58,6 +58,7 @@ export async function GET(
       playerId: p.player_id,
       playerName: p.player_name,
       playerPosition: p.player_position,
+      playerTeam: p.player_team,
     })),
     canEdit: await canEdit(id),
   });

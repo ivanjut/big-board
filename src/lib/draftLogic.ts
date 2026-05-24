@@ -22,6 +22,7 @@ export type Pick = {
   playerId: number;
   playerName: string;
   playerPosition: string | null;
+  playerTeam: string | null;
 };
 
 export type DraftState = {
