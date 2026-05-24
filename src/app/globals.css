@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+/* `light:` utilities apply when an ancestor (the <html>) carries the .light class. */
+@custom-variant light (&:where(.light, .light *));
+
+:root {
+  color-scheme: dark;
+}
+
+/*
+ * Light theme. The whole UI is built on the `slate` neutral ramp (slate-950 =
+ * page background … slate-100 = primary text). Rather than touch every utility
+ * in every component, light mode simply mirrors that ramp via CSS variables, so
+ * each `bg-slate-*` / `text-slate-*` / `border-slate-*` flips automatically.
+ * Accent colors (emerald / red / amber) are intentionally left unchanged.
+ */
+html.light {
+  color-scheme: light;
+  --color-slate-50: oklch(12.9% 0.042 264.695); /* ← slate-950 */
+  --color-slate-100: oklch(20.8% 0.042 265.755); /* ← slate-900 */
+  --color-slate-200: oklch(27.9% 0.041 260.031); /* ← slate-800 */
+  --color-slate-300: oklch(37.2% 0.044 257.287); /* ← slate-700 */
+  --color-slate-400: oklch(44.6% 0.043 257.281); /* ← slate-600 */
+  --color-slate-500: oklch(55.4% 0.046 257.417); /* unchanged (mid) */
+  --color-slate-600: oklch(70.4% 0.04 256.788); /* ← slate-400 */
+  --color-slate-700: oklch(86.9% 0.022 252.894); /* ← slate-300 */
+  --color-slate-800: oklch(92.9% 0.013 255.508); /* ← slate-200 */
+  --color-slate-900: oklch(96.8% 0.007 247.896); /* ← slate-100 */
+  --color-slate-950: oklch(98.4% 0.003 247.858); /* ← slate-50 */
+}
+
+html,
+body {
+  background: var(--color-slate-950);
+}
+
+@layer base {
+  /* Clickable buttons get the hand cursor; disabled ones keep the default arrow.
+     In @layer base so per-element cursor utilities (e.g. cursor-not-allowed) still win. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Keep the round-label column and member header visible while scrolling a wide board. */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
