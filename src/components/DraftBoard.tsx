@@ -138,8 +138,6 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   const onClockMember = onClock
     ? members.find((m) => m.slot === onClock.slot)
     : null;
-  const memberLabel = (m: { name: string; position: string | null }) =>
-    m.position ? `${m.name} (${m.position})` : m.name;
 
   return (
     <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
@@ -208,7 +206,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           <>
             <span className="text-sm text-slate-400">On the clock</span>
             <span className="text-lg font-bold">
-              {onClockMember ? memberLabel(onClockMember) : `Slot ${onClock!.slot}`}
+              {onClockMember ? onClockMember.name : `Slot ${onClock!.slot}`}
             </span>
             <span className="text-sm text-slate-400">
               Round {onClock!.round} · Pick {draft.currentPick}
@@ -302,11 +300,6 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                   className="min-w-[120px] border-l border-slate-800 bg-slate-900 px-2 py-2 text-center text-xs font-semibold text-slate-200"
                 >
                   <span className="block">{m.name}</span>
-                  {m.position && (
-                    <span className="block text-[10px] font-normal text-slate-500">
-                      {m.position}
-                    </span>
-                  )}
                 </th>
               ))}
             </tr>

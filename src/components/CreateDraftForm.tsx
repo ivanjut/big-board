@@ -3,8 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const POSITIONS = ["", "QB", "RB", "WR", "TE", "FLEX", "K", "DST", "IDP"];
-
 export function CreateDraftForm() {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -14,8 +12,8 @@ export function CreateDraftForm() {
   const [useTimer, setUseTimer] = useState(false);
   const [pickSeconds, setPickSeconds] = useState(90);
   const [password, setPassword] = useState("");
-  const [members, setMembers] = useState<{ name: string; position: string }[]>(
-    Array.from({ length: 12 }, () => ({ name: "", position: "" })),
+  const [members, setMembers] = useState<{ name: string }[]>(
+    Array.from({ length: 12 }, () => ({ name: "" })),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +23,7 @@ export function CreateDraftForm() {
     setMembers((prev) => {
       const next = [...prev];
       if (numSlots > next.length) {
-        while (next.length < numSlots) next.push({ name: "", position: "" });
+        while (next.length < numSlots) next.push({ name: "" });
       } else {
         next.length = numSlots;
       }
@@ -33,7 +31,7 @@ export function CreateDraftForm() {
     });
   }, [numSlots]);
 
-  function updateMember(i: number, field: "name" | "position", value: string) {
+  function updateMember(i: number, field: "name", value: string) {
     setMembers((prev) => {
       const next = [...prev];
       next[i] = { ...next[i], [field]: value };
@@ -59,7 +57,6 @@ export function CreateDraftForm() {
           members: members.map((m, i) => ({
             slot: i + 1,
             name: m.name || `Team ${i + 1}`,
-            position: m.position || null,
           })),
         }),
       });
@@ -180,17 +177,6 @@ export function CreateDraftForm() {
                 placeholder={`Team ${i + 1}`}
                 className={`${inputCls} min-w-0 flex-1`}
               />
-              <select
-                value={m.position}
-                onChange={(e) => updateMember(i, "position", e.target.value)}
-                className={`${inputCls} w-24`}
-              >
-                {POSITIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p || "—"}
-                  </option>
-                ))}
-              </select>
             </div>
           ))}
         </div>

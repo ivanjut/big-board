@@ -5,7 +5,7 @@ import { totalPicks } from "@/lib/draftLogic";
 
 export const runtime = "nodejs";
 
-type MemberInput = { slot: number; name?: string; position?: string };
+type MemberInput = { slot: number; name?: string };
 
 // PATCH /api/draft/[id]/settings — update a live draft's configuration.
 // Scalar fields are always editable; structural changes (slot count) are blocked
@@ -97,7 +97,7 @@ export async function PATCH(
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Members: upsert names/positions by slot, then drop any beyond the slot count.
+  // Members: upsert names by slot, then drop any beyond the slot count.
   if (Array.isArray(body.members)) {
     const rows = (body.members as MemberInput[])
       .filter((m) => Number(m.slot) >= 1 && Number(m.slot) <= finalSlots)
@@ -105,7 +105,6 @@ export async function PATCH(
         draft_id: id,
         slot: Number(m.slot),
         name: (m.name && String(m.name).trim()) || `Team ${m.slot ?? i + 1}`,
-        position: m.position ? String(m.position).trim() || null : null,
       }));
     if (rows.length) {
       const { error } = await sb

@@ -52,12 +52,11 @@ export async function POST(req: NextRequest) {
   }
 
   const memberRows = Array.from({ length: slots }, (_, i) => {
-    const m = (members[i] ?? {}) as { name?: string; position?: string };
+    const m = (members[i] ?? {}) as { name?: string };
     return {
       draft_id: draft.id as string,
       slot: i + 1,
       name: (m.name && String(m.name).trim()) || `Team ${i + 1}`,
-      position: m.position ? String(m.position).trim() || null : null,
     };
   });
 

@@ -13,7 +13,7 @@ export type DraftConfig = {
   status: "pending" | "active" | "paused" | "complete";
 };
 
-export type Member = { slot: number; name: string; position: string | null };
+export type Member = { slot: number; name: string };
 
 export type Pick = {
   pickNumber: number;

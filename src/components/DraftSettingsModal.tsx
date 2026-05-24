@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DraftConfig, Member } from "@/lib/draftLogic";
 
-const POSITIONS = ["", "QB", "RB", "WR", "TE", "FLEX", "K", "DST", "IDP"];
-
-type Row = { name: string; position: string };
+type Row = { name: string };
 
 // Commissioner-only modal to edit a live draft's settings.
 export function DraftSettingsModal({
@@ -38,7 +36,7 @@ export function DraftSettingsModal({
     const bySlot = new Map(members.map((m) => [m.slot, m]));
     return Array.from({ length: draft.numSlots }, (_, i) => {
       const m = bySlot.get(i + 1);
-      return { name: m?.name ?? "", position: m?.position ?? "" };
+      return { name: m?.name ?? "" };
     });
   }, [members, draft.numSlots]);
 
@@ -49,7 +47,7 @@ export function DraftSettingsModal({
     setRows((prev) => {
       const next = [...prev];
       if (numSlots > next.length) {
-        while (next.length < numSlots) next.push({ name: "", position: "" });
+        while (next.length < numSlots) next.push({ name: "" });
       } else {
         next.length = numSlots;
       }
@@ -84,7 +82,6 @@ export function DraftSettingsModal({
           members: rows.map((r, i) => ({
             slot: i + 1,
             name: r.name || `Team ${i + 1}`,
-            position: r.position || null,
           })),
         }),
       });
@@ -222,17 +219,6 @@ export function DraftSettingsModal({
                     placeholder={`Team ${i + 1}`}
                     className={`${inputCls} min-w-0 flex-1`}
                   />
-                  <select
-                    value={r.position}
-                    onChange={(e) => updateRow(i, "position", e.target.value)}
-                    className={`${inputCls} w-24`}
-                  >
-                    {POSITIONS.map((p) => (
-                      <option key={p} value={p}>
-                        {p || "—"}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               ))}
             </div>

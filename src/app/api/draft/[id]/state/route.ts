@@ -24,7 +24,7 @@ export async function GET(
 
   const { data: members } = await sb
     .from("draft_members")
-    .select("slot,name,position")
+    .select("slot,name")
     .eq("draft_id", id)
     .order("slot");
 
@@ -50,7 +50,6 @@ export async function GET(
     members: (members ?? []).map((m) => ({
       slot: m.slot,
       name: m.name,
-      position: m.position ?? null,
     })),
     picks: (picks ?? []).map((p) => ({
       pickNumber: p.pick_number,
