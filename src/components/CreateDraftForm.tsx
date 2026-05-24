@@ -58,8 +58,8 @@ export function CreateDraftForm() {
           password,
           members: members.map((m, i) => ({
             slot: i + 1,
-            // Fold the chosen position into the member label so it shows on the board header.
-            name: m.position ? `${m.name || `Team ${i + 1}`} (${m.position})` : m.name,
+            name: m.name || `Team ${i + 1}`,
+            position: m.position || null,
           })),
         }),
       });

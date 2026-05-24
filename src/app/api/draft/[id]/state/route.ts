@@ -15,7 +15,7 @@ export async function GET(
   const { data: d } = await sb
     .from("drafts")
     .select(
-      "id,name,num_slots,num_rounds,include_idp,pick_seconds,current_pick,current_pick_started_at,status",
+      "id,name,num_slots,num_rounds,include_idp,pick_seconds,current_pick,current_pick_started_at,paused_at,status",
     )
     .eq("id", id)
     .single();
@@ -24,7 +24,7 @@ export async function GET(
 
   const { data: members } = await sb
     .from("draft_members")
-    .select("slot,name")
+    .select("slot,name,position")
     .eq("draft_id", id)
     .order("slot");
 
@@ -44,9 +44,14 @@ export async function GET(
       pickSeconds: d.pick_seconds,
       currentPick: d.current_pick,
       currentPickStartedAt: d.current_pick_started_at,
+      pausedAt: d.paused_at,
       status: d.status,
     },
-    members: members ?? [],
+    members: (members ?? []).map((m) => ({
+      slot: m.slot,
+      name: m.name,
+      position: m.position ?? null,
+    })),
     picks: (picks ?? []).map((p) => ({
       pickNumber: p.pick_number,
       round: p.round,

@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏈 Big Board
 
-## Getting Started
+A web app for running **offline (in-person) fantasy football drafts**. A commissioner
+inputs picks on a shared draft board; everyone else opens the draft's link and watches
+live in view-only mode. Works on desktop and phone.
 
-First, run the development server:
+## Features
+
+- **Create a draft** — name, slots, rounds, IDP toggle, optional per-pick timer, and an
+  ordered member list with positions. Password-protected.
+- **Draft board** — members across the top, one row per round, pick numbers in every
+  cell, on-the-clock cell highlighted; horizontally scrollable on mobile.
+- **Fuzzy player search** — e.g. `bij` / `rob` → Bijan Robinson. IDPs hidden unless
+  enabled; drafted players drop out of results.
+- **Run the draft** — Start, Pause/Resume (freezes the clock), Pick, Undo, and Reset.
+  The pick timer counts down and then into red "over" time.
+- **Edit settings live** — the commissioner can adjust name, rounds, timer, IDPs, and
+  member names/positions mid-draft (with guards once picks exist).
+- **Live sharing** — view-only via Supabase Realtime; editing is unlocked with the draft
+  password (server-checked, signed cookie).
+
+## Tech stack
+
+- [Next.js](https://nextjs.org) (App Router, TypeScript) + Tailwind CSS
+- [Supabase](https://supabase.com) (Postgres + Realtime), run locally via the Supabase CLI + Docker
+
+All writes go through Next.js API routes using the Supabase service role; the browser
+only reads and subscribes to Realtime.
+
+## Local development
+
+Requires **Node 20+**, the **Supabase CLI**, and **Docker**.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1. Install dependencies
+npm install
+
+# 2. Start the local Supabase stack (Postgres + Realtime)
+supabase start
+
+# 3. Create .env.local from the printed credentials
+supabase status -o env   # copy API URL + anon/service keys into .env.local
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#   SUPABASE_SERVICE_ROLE_KEY, and a random EDIT_TOKEN_SECRET
+
+# 4. Apply the schema and seed the player database
+supabase db reset
+
+# 5. Run the dev server
+npm run dev          # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`.env.local` is gitignored.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Roadmap
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [`TODO.md`](./TODO.md) — notably configurable draft order (snake vs. linear) and a
+real player-data source (the current player list is a curated sample).

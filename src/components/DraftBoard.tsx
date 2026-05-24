@@ -11,6 +11,7 @@ import {
 } from "@/lib/draftLogic";
 import { PlayerSearch } from "./PlayerSearch";
 import { PickTimer } from "./PickTimer";
+import { DraftSettingsModal } from "./DraftSettingsModal";
 
 export function DraftBoard({ draftId }: { draftId: string }) {
   const [state, setState] = useState<DraftState | null>(null);
@@ -19,6 +20,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   const [password, setPassword] = useState("");
   const [showUnlock, setShowUnlock] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const refetch = useCallback(async () => {
@@ -32,7 +34,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     refetch();
   }, [refetch]);
 
-  // Realtime: any pick change for this draft refreshes the board for everyone.
+  // Realtime: any pick change for this draft refreshes the board immediately.
   useEffect(() => {
     const sb = supabaseBrowser();
     const channel = sb
@@ -52,6 +54,13 @@ export function DraftBoard({ draftId }: { draftId: string }) {
       sb.removeChannel(channel);
     };
   }, [draftId, refetch]);
+
+  // Light polling so viewers also pick up draft-row changes (start, settings),
+  // which aren't broadcast over Realtime (the drafts table is server-only).
+  useEffect(() => {
+    const t = setInterval(refetch, 5000);
+    return () => clearInterval(t);
+  }, [refetch]);
 
   const post = useCallback(
     async (path: string, body?: unknown) => {
@@ -120,13 +129,17 @@ export function DraftBoard({ draftId }: { draftId: string }) {
 
   const { draft, members, canEdit } = state;
   const total = totalPicks(draft.numSlots, draft.numRounds);
+  const pending = draft.status === "pending";
   const complete = draft.status === "complete" || draft.currentPick > total;
-  const onClock = complete
-    ? null
-    : pickToCell(draft.currentPick, draft.numSlots);
+  const paused = draft.status === "paused" && !complete;
+  const active = draft.status === "active" && !complete;
+  const inProgress = !pending && !complete; // active or paused
+  const onClock = inProgress ? pickToCell(draft.currentPick, draft.numSlots) : null;
   const onClockMember = onClock
     ? members.find((m) => m.slot === onClock.slot)
     : null;
+  const memberLabel = (m: { name: string; position: string | null }) =>
+    m.position ? `${m.name} (${m.position})` : m.name;
 
   return (
     <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
@@ -134,7 +147,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link href="/" className="text-xs text-slate-500 hover:text-slate-300">
-            ff-draft
+            Big Board
           </Link>
           <h1 className="text-xl font-bold sm:text-2xl">{draft.name}</h1>
         </div>
@@ -145,6 +158,14 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           >
             {copied ? "Copied!" : "Share link"}
           </button>
+          {canEdit && (
+            <button
+              onClick={() => setShowSettings(true)}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
+            >
+              ⚙ Settings
+            </button>
+          )}
           {!canEdit && (
             <button
               onClick={() => setShowUnlock((s) => !s)}
@@ -173,27 +194,39 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         </form>
       )}
 
-      {/* On the clock */}
+      {/* Status banner */}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
-        {complete ? (
+        {pending ? (
+          <span className="text-sm text-slate-300">
+            {canEdit
+              ? "Draft hasn't started — press Start when everyone's ready."
+              : "Waiting for the commissioner to start the draft."}
+          </span>
+        ) : complete ? (
           <span className="font-semibold text-emerald-400">Draft complete 🎉</span>
         ) : (
           <>
             <span className="text-sm text-slate-400">On the clock</span>
-            <span className="text-lg font-bold">{onClockMember?.name}</span>
+            <span className="text-lg font-bold">
+              {onClockMember ? memberLabel(onClockMember) : `Slot ${onClock!.slot}`}
+            </span>
             <span className="text-sm text-slate-400">
               Round {onClock!.round} · Pick {draft.currentPick}
             </span>
-            {draft.pickSeconds ? (
-              <span className="ml-auto text-sm text-slate-400">
-                ⏱{" "}
-                <PickTimer
-                  startedAt={draft.currentPickStartedAt}
-                  seconds={draft.pickSeconds}
-                  key={draft.currentPick}
-                />
-              </span>
-            ) : null}
+            <span className="ml-auto flex items-center gap-2 text-sm text-slate-400">
+              {paused && (
+                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-300">
+                  ⏸ Paused
+                </span>
+              )}
+              ⏱{" "}
+              <PickTimer
+                startedAt={draft.currentPickStartedAt}
+                seconds={draft.pickSeconds}
+                pausedAt={draft.pausedAt}
+                key={draft.currentPick}
+              />
+            </span>
           </>
         )}
       </div>
@@ -201,15 +234,41 @@ export function DraftBoard({ draftId }: { draftId: string }) {
       {/* Controls (only when unlocked) */}
       {canEdit && (
         <div className="mt-3 grid gap-2">
-          <PlayerSearch
-            draftId={draftId}
-            onPick={makePick}
-            disabled={complete}
-          />
-          <div className="flex gap-2">
+          {pending ? (
+            <button
+              onClick={() => post("start")}
+              className="rounded-xl bg-emerald-500 px-6 py-3 text-center font-semibold text-emerald-950 transition hover:bg-emerald-400"
+            >
+              ▶ Start draft
+            </button>
+          ) : (
+            <PlayerSearch
+              draftId={draftId}
+              onPick={makePick}
+              disabled={complete || paused}
+            />
+          )}
+          <div className="flex flex-wrap gap-2">
+            {active && (
+              <button
+                onClick={() => post("pause")}
+                className="rounded-lg border border-amber-700/60 px-4 py-2 text-sm text-amber-300 hover:bg-amber-500/10"
+              >
+                ⏸ Pause
+              </button>
+            )}
+            {paused && (
+              <button
+                onClick={() => post("resume")}
+                className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-400"
+              >
+                ▶ Resume
+              </button>
+            )}
             <button
               onClick={() => post("undo")}
-              className="rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800"
+              disabled={pending || paused}
+              className="rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800 disabled:opacity-40"
             >
               ↩ Undo
             </button>
@@ -242,7 +301,12 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                   key={m.slot}
                   className="min-w-[120px] border-l border-slate-800 bg-slate-900 px-2 py-2 text-center text-xs font-semibold text-slate-200"
                 >
-                  {m.name}
+                  <span className="block">{m.name}</span>
+                  {m.position && (
+                    <span className="block text-[10px] font-normal text-slate-500">
+                      {m.position}
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -262,7 +326,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                     );
                     const pick = picksByNumber.get(pickNumber);
                     const isOnClock =
-                      !complete && pickNumber === draft.currentPick;
+                      inProgress && pickNumber === draft.currentPick;
                     return (
                       <td
                         key={m.slot}
@@ -295,6 +359,22 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           </tbody>
         </table>
       </div>
+
+      {/* Settings modal */}
+      {showSettings && canEdit && (
+        <DraftSettingsModal
+          draftId={draftId}
+          draft={draft}
+          members={members}
+          hasPicks={state.picks.length > 0}
+          maxDraftedRound={state.picks.reduce((m, p) => Math.max(m, p.round), 0)}
+          onClose={() => setShowSettings(false)}
+          onSaved={async () => {
+            setShowSettings(false);
+            await refetch();
+          }}
+        />
+      )}
 
       {/* Reset confirmation */}
       {showReset && (

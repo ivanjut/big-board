@@ -1,4 +1,4 @@
-# ff-draft — Plan / TODO
+# Big Board — Plan / TODO
 
 Roadmap of planned work. v1 (offline fantasy football draft board) is built and running;
 see `.claude/IDEA.md` for the original spec.

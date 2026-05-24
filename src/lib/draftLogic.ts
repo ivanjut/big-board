@@ -9,10 +9,11 @@ export type DraftConfig = {
   pickSeconds: number | null;
   currentPick: number;
   currentPickStartedAt: string;
-  status: "active" | "complete";
+  pausedAt: string | null;
+  status: "pending" | "active" | "paused" | "complete";
 };
 
-export type Member = { slot: number; name: string };
+export type Member = { slot: number; name: string; position: string | null };
 
 export type Pick = {
   pickNumber: number;

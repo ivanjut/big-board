@@ -25,10 +25,15 @@ export async function POST(
   const sb = supabaseAdmin();
   const { data: draft } = await sb
     .from("drafts")
-    .select("num_slots,num_rounds,current_pick")
+    .select("num_slots,num_rounds,current_pick,status")
     .eq("id", id)
     .single();
   if (!draft) return NextResponse.json({ error: "Draft not found." }, { status: 404 });
+
+  if (draft.status === "pending")
+    return NextResponse.json({ error: "Start the draft before making picks." }, { status: 409 });
+  if (draft.status === "paused")
+    return NextResponse.json({ error: "The draft is paused — resume to make picks." }, { status: 409 });
 
   const total = totalPicks(draft.num_slots, draft.num_rounds);
   const pickNumber = draft.current_pick;

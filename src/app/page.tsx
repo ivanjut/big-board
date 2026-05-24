@@ -6,7 +6,7 @@ export default function Home() {
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-10 px-5 py-16">
       <header className="text-center">
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-          🏈 ff-draft
+          🏈 Big Board
         </h1>
         <p className="mt-3 text-slate-400">
           Run your offline fantasy football draft from any phone or laptop.
