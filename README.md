@@ -54,5 +54,5 @@ npm run dev          # http://localhost:3000
 
 ## Roadmap
 
-See [`TODO.md`](./TODO.md) — notably configurable draft order (snake vs. linear) and a
-real player-data source (the current player list is a curated sample).
+See [`.claude/TODO.md`](./.claude/TODO.md) — notably a configurable draft type (snake vs.
+auction) and a real player-data source (the current player list is a curated sample).
