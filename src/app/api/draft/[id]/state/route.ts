@@ -34,6 +34,14 @@ export async function GET(
     .eq("draft_id", id)
     .order("pick_number");
 
+  // Chronological so the client's buildOwnerMap resolves latest-trade-wins.
+  const { data: trades } = await sb
+    .from("pick_trades")
+    .select("transaction_id,pick_number,from_slot,to_slot,created_at")
+    .eq("draft_id", id)
+    .order("created_at")
+    .order("id");
+
   return NextResponse.json({
     draft: {
       id: d.id,
@@ -59,6 +67,13 @@ export async function GET(
       playerName: p.player_name,
       playerPosition: p.player_position,
       playerTeam: p.player_team,
+    })),
+    trades: (trades ?? []).map((t) => ({
+      transactionId: t.transaction_id,
+      pickNumber: t.pick_number,
+      fromSlot: t.from_slot,
+      toSlot: t.to_slot,
+      createdAt: t.created_at,
     })),
     canEdit: await canEdit(id),
   });

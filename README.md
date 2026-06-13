@@ -14,6 +14,10 @@ live in view-only mode. Works on desktop and phone.
   enabled; drafted players drop out of results.
 - **Run the draft** — Start, Pause/Resume (freezes the clock), Pick, Undo, and Reset.
   The pick timer counts down and then into red "over" time.
+- **Trade picks** — the commissioner can swap any not-yet-made picks between two teams in
+  a single transaction. The board shows each pick under its current owner (with a "traded"
+  badge), the on-the-clock team follows the effective owner, and a grouped trade history is
+  available to everyone.
 - **Edit settings live** — the commissioner can adjust name, rounds, timer, IDPs, and
   member names/positions mid-draft (with guards once picks exist).
 - **Live sharing** — view-only via Supabase Realtime; editing is unlocked with the draft

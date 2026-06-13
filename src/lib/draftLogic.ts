@@ -25,10 +25,22 @@ export type Pick = {
   playerTeam: string | null;
 };
 
+// One pick movement in a draft's trade log: pick `pickNumber` moved from one
+// drafting slot to another. Movements sharing a `transactionId` are one trade
+// (a two-team swap of several picks). Ordered chronologically by `createdAt`.
+export type PickTrade = {
+  transactionId: string;
+  pickNumber: number;
+  fromSlot: number;
+  toSlot: number;
+  createdAt: string;
+};
+
 export type DraftState = {
   draft: DraftConfig;
   members: Member[];
   picks: Pick[];
+  trades: PickTrade[];
   canEdit: boolean;
 };
 
@@ -64,4 +76,22 @@ export function cellToPick(
   const base = (round - 1) * numSlots;
   const indexInRound = round % 2 === 1 ? slot : numSlots - slot + 1;
   return base + indexInRound;
+}
+
+// Collapse a trade log into pick_number -> current owner slot. Later trades win,
+// so the input must be in chronological order (oldest first).
+export function buildOwnerMap(trades: PickTrade[]): Map<number, number> {
+  const owners = new Map<number, number>();
+  for (const t of trades) owners.set(t.pickNumber, t.toSlot);
+  return owners;
+}
+
+// Current owner of a pick: the latest trade's destination slot, or — if the pick
+// has never been traded — the original snake slot it falls on.
+export function effectiveOwnerSlot(
+  pickNumber: number,
+  numSlots: number,
+  owners: Map<number, number>,
+): number {
+  return owners.get(pickNumber) ?? pickToCell(pickNumber, numSlots).slot;
 }

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import {
+  buildOwnerMap,
   cellToPick,
+  effectiveOwnerSlot,
   pickToCell,
   totalPicks,
   type DraftState,
@@ -12,6 +14,7 @@ import {
 import { PlayerSearch } from "./PlayerSearch";
 import { PickTimer } from "./PickTimer";
 import { DraftSettingsModal } from "./DraftSettingsModal";
+import { TradeDialog } from "./TradeDialog";
 
 // Per-position color coding for drafted cells: a cell-background tint and a
 // matching name color (with a `light:` shade so it stays legible in light mode).
@@ -105,6 +108,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   const [showUnlock, setShowUnlock] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTrades, setShowTrades] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const refetch = useCallback(async () => {
@@ -129,6 +133,16 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           event: "*",
           schema: "public",
           table: "picks",
+          filter: `draft_id=eq.${draftId}`,
+        },
+        () => refetch(),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pick_trades",
           filter: `draft_id=eq.${draftId}`,
         },
         () => refetch(),
@@ -172,6 +186,12 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     [post],
   );
 
+  const trade = useCallback(
+    (payload: { teamA: number; teamB: number; aToB: number[]; bToA: number[] }) =>
+      post("trade", payload),
+    [post],
+  );
+
   async function unlock(e: React.FormEvent) {
     e.preventDefault();
     if (await post("unlock", { password })) {
@@ -192,6 +212,17 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     const m = new Map<number, DraftState["picks"][number]>();
     state?.picks.forEach((p) => m.set(p.pickNumber, p));
     return m;
+  }, [state]);
+
+  // Current owner of each traded pick (pickNumber -> slot); other picks fall back
+  // to their snake slot via effectiveOwnerSlot.
+  const ownerMap = useMemo(() => buildOwnerMap(state?.trades ?? []), [state]);
+
+  // Pick numbers already drafted — can't be traded.
+  const madePicks = useMemo(() => {
+    const s = new Set<number>();
+    state?.picks.forEach((p) => s.add(p.pickNumber));
+    return s;
   }, [state]);
 
   if (loadError) {
@@ -219,21 +250,47 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   const active = draft.status === "active" && !complete;
   const inProgress = !pending && !complete; // active or paused
   const onClock = inProgress ? pickToCell(draft.currentPick, draft.numSlots) : null;
-  const onClockMember = onClock
-    ? members.find((m) => m.slot === onClock.slot)
+  // Team on the clock = current owner of this pick (after any trades), not the
+  // raw snake slot.
+  const onClockSlot = onClock
+    ? effectiveOwnerSlot(draft.currentPick, draft.numSlots, ownerMap)
+    : null;
+  const onClockMember = onClockSlot
+    ? members.find((m) => m.slot === onClockSlot)
     : null;
   // Pick within the current round (1..numSlots), distinct from the overall pick number.
   const pickInRound = onClock
     ? ((draft.currentPick - 1) % draft.numSlots) + 1
     : null;
-  // "Next" — whoever holds the next overall pick, unless this is the final pick.
-  const nextCell =
+  // "Next" — current owner of the next overall pick, unless this is the final pick.
+  const nextSlot =
     inProgress && draft.currentPick < total
-      ? pickToCell(draft.currentPick + 1, draft.numSlots)
+      ? effectiveOwnerSlot(draft.currentPick + 1, draft.numSlots, ownerMap)
       : null;
-  const nextMember = nextCell
-    ? members.find((m) => m.slot === nextCell.slot)
+  const nextMember = nextSlot
+    ? members.find((m) => m.slot === nextSlot)
     : null;
+
+  // Count of trade transactions (not individual picks exchanged).
+  const tradeCount = new Set(state.trades.map((t) => t.transactionId)).size;
+
+  // Trade entry point — sits beside the ⋯ menu, above the board.
+  const tradesButton = (
+    <button
+      type="button"
+      onClick={() => setShowTrades(true)}
+      aria-label="Trade picks"
+      title="Trade picks"
+      className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-700 px-3 text-sm leading-none text-slate-300 hover:bg-slate-800 hover:text-slate-200"
+    >
+      ⇄ Trades
+      {tradeCount > 0 && (
+        <span className="rounded bg-slate-700 px-1.5 py-0.5 text-xs text-slate-200">
+          {tradeCount}
+        </span>
+      )}
+    </button>
+  );
 
   return (
     <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
@@ -310,15 +367,15 @@ export function DraftBoard({ draftId }: { draftId: string }) {
               On the clock
             </div>
             <div className="mt-0.5 text-3xl font-bold leading-none sm:text-4xl">
-              {onClockMember ? onClockMember.name : `Slot ${onClock!.slot}`}
+              {onClockMember ? onClockMember.name : `Slot ${onClockSlot}`}
             </div>
-            {nextCell && (
+            {nextSlot && (
               <div className="mt-3 text-sm text-slate-400">
                 <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
                   Next
                 </span>{" "}
                 <span className="font-semibold text-slate-300">
-                  {nextMember ? nextMember.name : `Slot ${nextCell.slot}`}
+                  {nextMember ? nextMember.name : `Slot ${nextSlot}`}
                 </span>
               </div>
             )}
@@ -372,6 +429,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
             >
               ▶ Start draft
             </button>
+            {tradesButton}
             <MoreMenu onReset={() => setShowReset(true)} />
           </div>
         ) : (
@@ -418,10 +476,18 @@ export function DraftBoard({ draftId }: { draftId: string }) {
               />
             </div>
 
-            {/* Guarded reset behind a ⋯ menu */}
-            <MoreMenu onReset={() => setShowReset(true)} />
+            {/* Trades + guarded reset behind a ⋯ menu */}
+            <div className="flex items-center gap-2">
+              {tradesButton}
+              <MoreMenu onReset={() => setShowReset(true)} />
+            </div>
           </div>
         ))}
+
+      {/* Viewers can still open the trade history/board (read-only). */}
+      {!canEdit && (
+        <div className="mt-3 flex justify-end">{tradesButton}</div>
+      )}
 
       {actionError && (
         <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">
@@ -470,6 +536,17 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                           .filter(Boolean)
                           .join(" · ")
                       : "";
+                    // A traded pick belongs to a team other than this column.
+                    const ownerSlot = effectiveOwnerSlot(
+                      pickNumber,
+                      draft.numSlots,
+                      ownerMap,
+                    );
+                    const traded = ownerSlot !== m.slot;
+                    const ownerName = traded
+                      ? members.find((mm) => mm.slot === ownerSlot)?.name ??
+                        `Slot ${ownerSlot}`
+                      : null;
                     return (
                       <td
                         key={m.slot}
@@ -478,12 +555,22 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                             ? "bg-emerald-500/15 ring-2 ring-inset ring-emerald-500"
                             : pick
                               ? ps?.cell ?? "bg-slate-900/40 light:bg-slate-900"
-                              : ""
+                              : traded
+                                ? "bg-fuchsia-500/5"
+                                : ""
                         }`}
                       >
                         <span className="absolute right-1 top-0.5 text-[10px] text-slate-600">
                           {pickNumber}
                         </span>
+                        {traded && (
+                          <span
+                            title={`Traded to ${ownerName}`}
+                            className="absolute bottom-0.5 left-1 max-w-[calc(100%-0.5rem)] truncate rounded bg-fuchsia-500/25 px-1 text-[9px] font-semibold uppercase tracking-wide text-fuchsia-200 light:text-fuchsia-800"
+                          >
+                            ⇄ {ownerName}
+                          </span>
+                        )}
                         {meta && (
                           <span className="absolute bottom-0.5 right-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
                             {meta}
@@ -518,6 +605,22 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           </tbody>
         </table>
       </div>
+
+      {/* Trade dialog (history for everyone; commissioner-only builder) */}
+      {showTrades && (
+        <TradeDialog
+          members={members}
+          trades={state.trades}
+          owners={ownerMap}
+          madePicks={madePicks}
+          numSlots={draft.numSlots}
+          total={total}
+          currentPick={draft.currentPick}
+          canEdit={canEdit}
+          onTrade={trade}
+          onClose={() => setShowTrades(false)}
+        />
+      )}
 
       {/* Settings modal */}
       {showSettings && canEdit && (

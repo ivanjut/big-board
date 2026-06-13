@@ -8,7 +8,7 @@ CHANGELOG or delete once shipped).
 
 ## Planned features
 
-- [ ] **Trade draft picks.** Let the commissioner reassign ownership of not-yet-made
+- [x] **Trade draft picks.** Let the commissioner reassign ownership of not-yet-made
   picks between teams, keep a log of every trade, and reflect current ownership on
   the board. Today a pick's owner is implicit — the board derives it from the snake
   slot (`cellToPick(round, slot, numSlots)` for cells, `pickToCell(currentPick, …)`

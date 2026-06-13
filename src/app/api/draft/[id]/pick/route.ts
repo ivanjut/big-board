@@ -47,7 +47,19 @@ export async function POST(
     .single();
   if (!player) return NextResponse.json({ error: "Player not found." }, { status: 404 });
 
-  const { round, slot } = pickToCell(pickNumber, draft.num_slots);
+  const { round, slot: snakeSlot } = pickToCell(pickNumber, draft.num_slots);
+
+  // If this pick was traded, the team that makes it is the latest owner.
+  const { data: lastTrade } = await sb
+    .from("pick_trades")
+    .select("to_slot")
+    .eq("draft_id", id)
+    .eq("pick_number", pickNumber)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const slot = lastTrade?.to_slot ?? snakeSlot;
 
   const { error: insErr } = await sb.from("picks").insert({
     draft_id: id,
