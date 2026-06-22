@@ -56,6 +56,28 @@ npm run dev          # http://localhost:3000
 
 `.env.local` is gitignored.
 
+> **Docker must be running first.** The local Supabase stack runs in Docker (OrbStack
+> on this machine), so start that before `supabase start`. After a reboot the containers
+> are down, and the app's API routes will fail until they're back up.
+
+## Troubleshooting
+
+**`POST /api/draft` (or any API route) returns 500 / "fetch failed".** The most common
+cause is that the local Supabase stack is down, so the service-role client can't reach
+Postgres at `http://127.0.0.1:54321`. Bring it back up:
+
+```bash
+open -a OrbStack                 # 1. start Docker (wait until `docker info` succeeds)
+supabase start                   # 2. boot the Supabase stack (wait for db container = healthy)
+npm run dev                      # 3. run the dev server
+
+# Quick check that Supabase is reachable (expect an HTTP code, not 000):
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:54321/rest/v1/
+```
+
+If `supabase status` errors with "Cannot connect to the Docker daemon", Docker itself
+isn't up yet — start OrbStack and wait for `docker info` to succeed before retrying.
+
 ## Roadmap
 
 See [`.claude/TODO.md`](./.claude/TODO.md) — notably a configurable draft type (snake vs.
