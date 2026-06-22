@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   effectiveOwnerSlot,
   pickToCell,
   type Member,
+  type Pick,
   type PickTrade,
 } from "@/lib/draftLogic";
 
@@ -20,13 +21,13 @@ function PickColumn({
   title,
   picks,
   selected,
-  label,
+  renderItem,
   onToggle,
 }: {
   title: string;
   picks: number[];
   selected: Set<number>;
-  label: (n: number) => string;
+  renderItem: (n: number) => ReactNode;
   onToggle: (n: number) => void;
 }) {
   return (
@@ -36,7 +37,7 @@ function PickColumn({
       </div>
       <div className="max-h-56 overflow-y-auto p-1">
         {picks.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-slate-500">No tradeable picks.</p>
+          <p className="px-2 py-3 text-sm text-slate-500">Nothing to trade.</p>
         ) : (
           picks.map((n) => (
             <label
@@ -47,9 +48,9 @@ function PickColumn({
                 type="checkbox"
                 checked={selected.has(n)}
                 onChange={() => onToggle(n)}
-                className="h-4 w-4 accent-emerald-500"
+                className="h-4 w-4 shrink-0 accent-emerald-500"
               />
-              <span>{label(n)}</span>
+              <span className="min-w-0 flex-1">{renderItem(n)}</span>
             </label>
           ))
         )}
@@ -64,8 +65,8 @@ function PickColumn({
 export function TradeDialog({
   members,
   trades,
+  picks,
   owners,
-  madePicks,
   numSlots,
   total,
   currentPick,
@@ -75,8 +76,8 @@ export function TradeDialog({
 }: {
   members: Member[];
   trades: PickTrade[];
+  picks: Pick[];
   owners: Map<number, number>;
-  madePicks: Set<number>;
   numSlots: number;
   total: number;
   currentPick: number;
@@ -86,6 +87,14 @@ export function TradeDialog({
 }) {
   const memberName = (slot: number) =>
     members.find((m) => m.slot === slot)?.name ?? `Slot ${slot}`;
+
+  // pick number -> the player drafted with it (if it has been made), so the
+  // history can show what a traded pick ultimately became.
+  const playerByPick = useMemo(() => {
+    const m = new Map<number, Pick>();
+    for (const p of picks) m.set(p.pickNumber, p);
+    return m;
+  }, [picks]);
 
   // Next drafting team after `slot` (by slot order, wrapping) — the default
   // counterparty to trade with.
@@ -111,17 +120,18 @@ export function TradeDialog({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  // Upcoming, unmade picks currently owned by a given team.
+  // Every pick a team currently owns — both drafted players (made picks) and
+  // upcoming picks. Made picks have lower numbers, so they sort first and a
+  // team's column reads as its roster followed by its remaining picks.
   const picksOwnedBy = useMemo(() => {
     return (slot: number) => {
       const out: number[] = [];
-      for (let n = currentPick; n <= total; n++) {
-        if (madePicks.has(n)) continue;
+      for (let n = 1; n <= total; n++) {
         if (effectiveOwnerSlot(n, numSlots, owners) === slot) out.push(n);
       }
       return out;
     };
-  }, [currentPick, total, madePicks, owners, numSlots]);
+  }, [total, owners, numSlots]);
 
   const aPicks = useMemo(() => picksOwnedBy(teamA), [picksOwnedBy, teamA]);
   const bPicks = useMemo(() => picksOwnedBy(teamB), [picksOwnedBy, teamB]);
@@ -152,6 +162,30 @@ export function TradeDialog({
     const { round } = pickToCell(n, numSlots);
     const inRound = ((n - 1) % numSlots) + 1;
     return `#${n} · R${round}·P${inRound}`;
+  }
+
+  // A row in a team's tradeable list: a drafted player shows its name and
+  // position (with the pick tag as secondary); an unmade pick shows just the tag.
+  function itemContent(n: number): ReactNode {
+    const player = playerByPick.get(n);
+    if (player) {
+      return (
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate font-medium text-slate-100">
+            {player.playerName}
+          </span>
+          {player.playerPosition && (
+            <span className="shrink-0 text-[11px] uppercase text-slate-500">
+              {player.playerPosition}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 text-[11px] text-slate-600">
+            {pickLabel(n)}
+          </span>
+        </span>
+      );
+    }
+    return <span className="text-slate-300">{pickLabel(n)}</span>;
   }
 
   const count = selA.size + selB.size;
@@ -248,14 +282,14 @@ export function TradeDialog({
                 title={`${memberName(teamA)} sends →`}
                 picks={aPicks}
                 selected={selA}
-                label={pickLabel}
+                renderItem={itemContent}
                 onToggle={(n) => toggle(selA, setSelA, n)}
               />
               <PickColumn
                 title={`${memberName(teamB)} sends →`}
                 picks={bPicks}
                 selected={selB}
-                label={pickLabel}
+                renderItem={itemContent}
                 onToggle={(n) => toggle(selB, setSelB, n)}
               />
             </div>
@@ -322,17 +356,32 @@ export function TradeDialog({
                       {teams.map((s) => memberName(s)).join(" ⇄ ")}
                     </div>
                     <div className="mt-1 grid gap-0.5 text-xs text-slate-400">
-                      {rows.map((r, i) => (
-                        <div key={i}>
-                          <span className="font-semibold text-emerald-300 light:text-emerald-700">
-                            {memberName(r.toSlot)}
-                          </span>{" "}
-                          gets {pickLabel(r.pickNumber)}{" "}
-                          <span className="text-slate-500">
-                            (from {memberName(r.fromSlot)})
-                          </span>
-                        </div>
-                      ))}
+                      {rows.map((r, i) => {
+                        const player = playerByPick.get(r.pickNumber);
+                        return (
+                          <div key={i}>
+                            <span className="font-semibold text-emerald-300 light:text-emerald-700">
+                              {memberName(r.toSlot)}
+                            </span>{" "}
+                            gets {pickLabel(r.pickNumber)}{" "}
+                            <span className="text-slate-500">
+                              (from {memberName(r.fromSlot)})
+                            </span>
+                            {player && (
+                              <span className="text-slate-300">
+                                {" "}
+                                →{" "}
+                                <span className="font-medium">
+                                  {player.playerName}
+                                </span>
+                                {player.playerPosition
+                                  ? ` (${player.playerPosition})`
+                                  : ""}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </li>
                 ))}

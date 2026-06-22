@@ -59,17 +59,15 @@ export async function POST(
   if (allPicks.some((n) => n < 1 || n > total))
     return NextResponse.json({ error: "A selected pick is out of range." }, { status: 400 });
 
-  // Reject any pick that's already been made.
+  // Drafted players trade too: a made pick is reassigned the same way (its pick
+  // number moves teams). Track which selected picks are already made so we can
+  // keep the denormalized picks.slot owner column in sync below.
   const { data: madeRows } = await sb
     .from("picks")
     .select("pick_number")
     .eq("draft_id", id)
     .in("pick_number", allPicks);
-  if (madeRows && madeRows.length > 0)
-    return NextResponse.json(
-      { error: "One of those picks has already been made." },
-      { status: 409 },
-    );
+  const madeSet = new Set((madeRows ?? []).map((r) => r.pick_number));
 
   // Current ownership from the trade log, latest-trade-wins.
   const { data: log } = await sb
@@ -116,6 +114,15 @@ export async function POST(
 
   const { error: insErr } = await sb.from("pick_trades").insert(rows);
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+
+  // Keep picks.slot (the denormalized owner of a made pick) in sync so any
+  // drafted players moved in this trade now belong to their new team.
+  const aMade = aToB.filter((n) => madeSet.has(n));
+  const bMade = bToA.filter((n) => madeSet.has(n));
+  if (aMade.length)
+    await sb.from("picks").update({ slot: teamB }).eq("draft_id", id).in("pick_number", aMade);
+  if (bMade.length)
+    await sb.from("picks").update({ slot: teamA }).eq("draft_id", id).in("pick_number", bMade);
 
   return NextResponse.json({ ok: true });
 }

@@ -218,13 +218,6 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   // to their snake slot via effectiveOwnerSlot.
   const ownerMap = useMemo(() => buildOwnerMap(state?.trades ?? []), [state]);
 
-  // Pick numbers already drafted — can't be traded.
-  const madePicks = useMemo(() => {
-    const s = new Set<number>();
-    state?.picks.forEach((p) => s.add(p.pickNumber));
-    return s;
-  }, [state]);
-
   if (loadError) {
     return (
       <main className="mx-auto max-w-md px-5 py-20 text-center">
@@ -611,8 +604,8 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         <TradeDialog
           members={members}
           trades={state.trades}
+          picks={state.picks}
           owners={ownerMap}
-          madePicks={madePicks}
           numSlots={draft.numSlots}
           total={total}
           currentPick={draft.currentPick}
