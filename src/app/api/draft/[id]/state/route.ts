@@ -42,6 +42,13 @@ export async function GET(
     .order("created_at")
     .order("id");
 
+  // Skipped-but-unfilled picks (open, returnable cells on the board).
+  const { data: skipped } = await sb
+    .from("skipped_picks")
+    .select("pick_number")
+    .eq("draft_id", id)
+    .order("pick_number");
+
   return NextResponse.json({
     draft: {
       id: d.id,
@@ -75,6 +82,7 @@ export async function GET(
       toSlot: t.to_slot,
       createdAt: t.created_at,
     })),
+    skipped: (skipped ?? []).map((s) => s.pick_number),
     canEdit: await canEdit(id),
   });
 }

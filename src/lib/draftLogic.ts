@@ -41,6 +41,8 @@ export type DraftState = {
   members: Member[];
   picks: Pick[];
   trades: PickTrade[];
+  // Overall pick numbers that were skipped (deferred) and not yet filled.
+  skipped: number[];
   canEdit: boolean;
 };
 
@@ -76,6 +78,46 @@ export function cellToPick(
   const base = (round - 1) * numSlots;
   const indexInRound = round % 2 === 1 ? slot : numSlots - slot + 1;
   return base + indexInRound;
+}
+
+// The pick currently on the clock, given the forward frontier (current_pick),
+// the set of skipped-but-unfilled picks, and the draft size. The clock marches
+// forward through the frontier; skipped picks stay open and returnable off the
+// clock until the frontier runs off the end, at which point the clock falls back
+// to the earliest still-open skipped pick so deferred picks get filled. Returns
+// null when every pick has been made (the draft is complete).
+export function clockPick(
+  currentPick: number,
+  skipped: number[],
+  total: number,
+): number | null {
+  if (currentPick <= total) return currentPick;
+  return skipped.length ? Math.min(...skipped) : null;
+}
+
+// The pick that lands on the clock once the current one is resolved (used for
+// the "next" indicator). Mirrors clockPick's ordering: remaining forward picks
+// first, then skipped picks ascending.
+export function nextClockPick(
+  currentPick: number,
+  skipped: number[],
+  total: number,
+): number | null {
+  if (currentPick < total) return currentPick + 1;
+  // currentPick === total: after this pick, only skipped picks remain.
+  // currentPick > total: clock is the smallest skipped pick, so "next" is the
+  // second smallest.
+  const sorted = [...skipped].sort((a, b) => a - b);
+  return currentPick === total ? (sorted[0] ?? null) : (sorted[1] ?? null);
+}
+
+// True once the frontier has run off the end and no skipped picks remain.
+export function isComplete(
+  currentPick: number,
+  skipped: number[],
+  total: number,
+): boolean {
+  return currentPick > total && skipped.length === 0;
 }
 
 // Collapse a trade log into pick_number -> current owner slot. Later trades win,

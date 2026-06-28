@@ -4,7 +4,7 @@ import { canEdit } from "@/lib/editToken";
 
 export const runtime = "nodejs";
 
-// POST /api/draft/[id]/undo — remove the most recent pick.
+// POST /api/draft/[id]/undo — reverse the most recently made pick.
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -18,21 +18,46 @@ export async function POST(
     .from("picks")
     .select("id,pick_number")
     .eq("draft_id", id)
-    .order("pick_number", { ascending: false })
+    .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (!last) return NextResponse.json({ ok: true, nothingToUndo: true });
 
-  await sb.from("picks").delete().eq("id", last.id);
-  await sb
+  const { data: draft } = await sb
     .from("drafts")
-    .update({
-      current_pick: last.pick_number,
-      current_pick_started_at: new Date().toISOString(),
-      status: "active",
-    })
-    .eq("id", id);
+    .select("current_pick")
+    .eq("id", id)
+    .single();
+  if (!draft) return NextResponse.json({ error: "Draft not found." }, { status: 404 });
+
+  await sb.from("picks").delete().eq("id", last.id);
+
+  // If this pick was the last one on the forward frontier (nothing was reached
+  // beyond it), retreat the frontier so it's back on the clock. Otherwise it was
+  // filled out of order — return it to the open/skipped state instead of yanking
+  // the clock backwards.
+  if (last.pick_number === draft.current_pick - 1) {
+    await sb
+      .from("drafts")
+      .update({
+        current_pick: last.pick_number,
+        current_pick_started_at: new Date().toISOString(),
+        status: "active",
+      })
+      .eq("id", id);
+  } else {
+    await sb
+      .from("skipped_picks")
+      .upsert(
+        { draft_id: id, pick_number: last.pick_number },
+        { onConflict: "draft_id,pick_number", ignoreDuplicates: true },
+      );
+    await sb
+      .from("drafts")
+      .update({ current_pick_started_at: new Date().toISOString(), status: "active" })
+      .eq("id", id);
+  }
 
   return NextResponse.json({ ok: true });
 }

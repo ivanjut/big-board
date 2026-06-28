@@ -85,11 +85,21 @@ export async function PATCH(
     update.num_slots = slots;
   }
 
+  // Drop any skipped picks that fall outside a now-smaller board so they don't
+  // keep the draft from ever completing.
+  const total = totalPicks(finalSlots, finalRounds);
+  await sb.from("skipped_picks").delete().eq("draft_id", id).gt("pick_number", total);
+  const { count: openSkips } = await sb
+    .from("skipped_picks")
+    .select("id", { count: "exact", head: true })
+    .eq("draft_id", id);
+
   // Keep status consistent if the board size changed for a started draft.
-  // (Leave 'pending' and 'paused' drafts in their current state.)
+  // (Leave 'pending' and 'paused' drafts in their current state.) The draft is
+  // only complete once the frontier has run off the end and no skips remain.
   if (draft.status === "active" || draft.status === "complete") {
-    const total = totalPicks(finalSlots, finalRounds);
-    update.status = draft.current_pick > total ? "complete" : "active";
+    update.status =
+      draft.current_pick > total && (openSkips ?? 0) === 0 ? "complete" : "active";
   }
 
   if (Object.keys(update).length > 0) {

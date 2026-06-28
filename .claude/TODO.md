@@ -6,6 +6,29 @@ draft board) is built and running; original spec in [`IDEA.md`](./IDEA.md).
 Convention: `[ ]` not started · `[~]` in progress · `[x]` done (move to a
 CHANGELOG or delete once shipped).
 
+## Immediate next steps
+
+- [x] **Skip picks and return to them later.** The team on the clock can defer; the
+  draft advances and the skipped pick stays an open, returnable cell.
+  - **Data:** `skipped_picks` table (migration `0008`) — one row per deferred,
+    unfilled pick (deleted when filled, undone back onto the clock, or reset).
+  - **API:** `POST /skip` defers the frontier pick; `POST /pick` takes an optional
+    `pickNumber` to fill a specific open pick out of order. `drafts.current_pick`
+    stays the forward frontier and marches on, stepping over skipped picks; once it
+    runs off the end the clock falls back to the earliest still-open skip
+    (`clockPick`/`nextClockPick`/`isComplete` in `draftLogic.ts`). `undo` returns an
+    out-of-order fill to the open state; `reset`/`settings` clean up skips.
+  - **Board (`DraftBoard.tsx`):** open cells show a "⏭ Skipped" badge; the
+    commissioner clicks one to target it, then the search fills that pick. A ⏭ Skip
+    control sits in the dock next to Pause/Undo.
+
+- [ ] **Export the board as CSV or to Google Sheets.** A button — usable at any point in
+  the draft, not just when complete — to export the current board.
+  - **CSV:** generate client-side from `state` (a round × team grid, or a flat
+    pick/team/player/position list) and download.
+  - **Google Sheets:** push the same data into a new spreadsheet via the Google Sheets
+    API (needs OAuth); fall back to CSV when not connected.
+
 ## Planned features
 
 - [x] **Trade draft picks.** Let the commissioner reassign ownership of not-yet-made
@@ -47,7 +70,6 @@ CHANGELOG or delete once shipped).
 
 - [ ] **Per-team roster view.** A way to see a single team's drafted players
   (column emphasis, filter, or a per-team panel).
-- [ ] **Export draft results.** Download the completed board as CSV/JSON. Put this as a button to be used at any point in the draft.
 - [ ] **Draft-order randomizer.** Shuffle the member slots at creation time.
 - [ ] **Configurable draft type (snake vs. auction).** v1 only supports a snake draft
   (the board math in `src/lib/draftLogic.ts` hardcodes a serpentine order: round 1

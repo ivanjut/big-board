@@ -6,7 +6,9 @@ import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import {
   buildOwnerMap,
   cellToPick,
+  clockPick,
   effectiveOwnerSlot,
+  nextClockPick,
   pickToCell,
   totalPicks,
   type DraftState,
@@ -110,6 +112,9 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showTrades, setShowTrades] = useState(false);
   const [copied, setCopied] = useState(false);
+  // When set, the next pick fills this specific (skipped) pick out of order
+  // instead of the one on the clock.
+  const [fillTarget, setFillTarget] = useState<number | null>(null);
 
   const refetch = useCallback(async () => {
     const res = await fetch(`/api/draft/${draftId}/state`, { cache: "no-store" });
@@ -147,6 +152,16 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         },
         () => refetch(),
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "skipped_picks",
+          filter: `draft_id=eq.${draftId}`,
+        },
+        () => refetch(),
+      )
       .subscribe();
     return () => {
       sb.removeChannel(channel);
@@ -177,13 +192,6 @@ export function DraftBoard({ draftId }: { draftId: string }) {
       return true;
     },
     [draftId, refetch],
-  );
-
-  const makePick = useCallback(
-    async (playerId: number) => {
-      await post("pick", { playerId });
-    },
-    [post],
   );
 
   const trade = useCallback(
@@ -237,32 +245,61 @@ export function DraftBoard({ draftId }: { draftId: string }) {
 
   const { draft, members, canEdit } = state;
   const total = totalPicks(draft.numSlots, draft.numRounds);
+  const skippedSet = new Set(state.skipped);
   const pending = draft.status === "pending";
-  const complete = draft.status === "complete" || draft.currentPick > total;
+  // The pick on the clock — null once every pick has been made.
+  const clockNum = clockPick(draft.currentPick, state.skipped, total);
+  const complete = draft.status === "complete" || clockNum === null;
   const paused = draft.status === "paused" && !complete;
   const active = draft.status === "active" && !complete;
   const inProgress = !pending && !complete; // active or paused
-  const onClock = inProgress ? pickToCell(draft.currentPick, draft.numSlots) : null;
+  // Whether the pick on the clock is the forward frontier (vs. a returned-to
+  // skipped pick); only the frontier can be skipped.
+  const onFrontier = clockNum != null && clockNum === draft.currentPick;
+  const onClock =
+    inProgress && clockNum != null
+      ? pickToCell(clockNum, draft.numSlots)
+      : null;
   // Team on the clock = current owner of this pick (after any trades), not the
   // raw snake slot.
-  const onClockSlot = onClock
-    ? effectiveOwnerSlot(draft.currentPick, draft.numSlots, ownerMap)
-    : null;
+  const onClockSlot =
+    onClock && clockNum != null
+      ? effectiveOwnerSlot(clockNum, draft.numSlots, ownerMap)
+      : null;
   const onClockMember = onClockSlot
     ? members.find((m) => m.slot === onClockSlot)
     : null;
   // Pick within the current round (1..numSlots), distinct from the overall pick number.
-  const pickInRound = onClock
-    ? ((draft.currentPick - 1) % draft.numSlots) + 1
+  const pickInRound =
+    onClock && clockNum != null ? ((clockNum - 1) % draft.numSlots) + 1 : null;
+  // "Next" — current owner of the pick that lands on the clock after this one.
+  const nextNum = inProgress
+    ? nextClockPick(draft.currentPick, state.skipped, total)
     : null;
-  // "Next" — current owner of the next overall pick, unless this is the final pick.
   const nextSlot =
-    inProgress && draft.currentPick < total
-      ? effectiveOwnerSlot(draft.currentPick + 1, draft.numSlots, ownerMap)
+    nextNum != null
+      ? effectiveOwnerSlot(nextNum, draft.numSlots, ownerMap)
       : null;
   const nextMember = nextSlot
     ? members.find((m) => m.slot === nextSlot)
     : null;
+
+  // The pick a search selection fills: a returned-to skipped pick if one is
+  // targeted (and still open), otherwise the pick on the clock.
+  const activeFill =
+    fillTarget != null && skippedSet.has(fillTarget) ? fillTarget : clockNum;
+  const makePick = async (playerId: number) => {
+    if (activeFill == null) return;
+    if (await post("pick", { playerId, pickNumber: activeFill }))
+      setFillTarget(null);
+  };
+  const fillTargetMember =
+    fillTarget != null && skippedSet.has(fillTarget)
+      ? members.find(
+          (m) =>
+            m.slot === effectiveOwnerSlot(fillTarget, draft.numSlots, ownerMap),
+        )
+      : null;
 
   // Count of trade transactions (not individual picks exchanged).
   const tradeCount = new Set(state.trades.map((t) => t.transactionId)).size;
@@ -381,7 +418,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                 startedAt={draft.currentPickStartedAt}
                 seconds={draft.pickSeconds}
                 pausedAt={draft.pausedAt}
-                key={draft.currentPick}
+                key={clockNum ?? draft.currentPick}
               />
             </div>
             <div className="mt-2 flex items-center justify-center gap-2 text-[11px] uppercase tracking-widest text-slate-500">
@@ -405,8 +442,8 @@ export function DraftBoard({ draftId }: { draftId: string }) {
               {pickInRound}
             </div>
             <div className="mt-3 text-sm text-slate-400">
-              Overall pick{" "}
-              <span className="font-semibold text-slate-300">#{draft.currentPick}</span>
+              {onFrontier ? "Overall pick" : "Returning to pick"}{" "}
+              <span className="font-semibold text-slate-300">#{clockNum}</span>
             </div>
           </div>
         </div>
@@ -458,6 +495,19 @@ export function DraftBoard({ draftId }: { draftId: string }) {
               >
                 ↩
               </button>
+              <button
+                onClick={() => post("skip")}
+                disabled={!active || !onFrontier}
+                aria-label="Skip this pick"
+                title={
+                  onFrontier
+                    ? "Skip this pick (return to it later)"
+                    : "This pick was skipped — fill it from the board"
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 text-lg leading-none text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+              >
+                ⏭
+              </button>
             </div>
 
             {/* Centered search */}
@@ -480,6 +530,24 @@ export function DraftBoard({ draftId }: { draftId: string }) {
       {/* Viewers can still open the trade history/board (read-only). */}
       {!canEdit && (
         <div className="mt-3 flex justify-end">{tradesButton}</div>
+      )}
+
+      {/* Returning to a skipped pick — the search now fills this one. */}
+      {canEdit && fillTarget != null && skippedSet.has(fillTarget) && (
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-700/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          <span>
+            Filling skipped pick{" "}
+            <span className="font-semibold">#{fillTarget}</span>
+            {fillTargetMember ? ` — ${fillTargetMember.name}` : ""}. Search to
+            draft a player into it.
+          </span>
+          <button
+            onClick={() => setFillTarget(null)}
+            className="shrink-0 rounded-md border border-amber-700/60 px-2 py-1 text-xs hover:bg-amber-500/20"
+          >
+            Cancel
+          </button>
+        </div>
       )}
 
       {actionError && (
@@ -521,7 +589,14 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                     );
                     const pick = picksByNumber.get(pickNumber);
                     const isOnClock =
-                      inProgress && pickNumber === draft.currentPick;
+                      inProgress && clockNum != null && pickNumber === clockNum;
+                    // An open cell: skipped (deferred) and not yet filled.
+                    const isSkipped = !pick && skippedSet.has(pickNumber);
+                    const isFillTarget = isSkipped && fillTarget === pickNumber;
+                    // The commissioner can click an open, off-clock cell to
+                    // return to it and fill it out of order.
+                    const returnable =
+                      canEdit && isSkipped && !isOnClock && !paused && !complete;
                     const ps = pick ? posStyle(pick.playerPosition) : null;
                     const name = pick ? splitName(pick.playerName) : null;
                     const meta = pick
@@ -543,14 +618,24 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                     return (
                       <td
                         key={m.slot}
+                        onClick={
+                          returnable
+                            ? () => setFillTarget(pickNumber)
+                            : undefined
+                        }
+                        title={returnable ? "Click to fill this skipped pick" : undefined}
                         className={`relative h-14 border-l border-t border-slate-800 px-2 py-1 align-top ${
                           isOnClock
                             ? "bg-emerald-500/15 ring-2 ring-inset ring-emerald-500"
                             : pick
                               ? ps?.cell ?? "bg-slate-900/40 light:bg-slate-900"
-                              : traded
-                                ? "bg-fuchsia-500/5"
-                                : ""
+                              : isFillTarget
+                                ? "bg-amber-500/20 ring-2 ring-inset ring-amber-500"
+                                : isSkipped
+                                  ? `bg-amber-500/10${returnable ? " cursor-pointer hover:bg-amber-500/20" : ""}`
+                                  : traded
+                                    ? "bg-fuchsia-500/5"
+                                    : ""
                         }`}
                       >
                         <span className="absolute right-1 top-0.5 text-[10px] text-slate-600">
@@ -587,6 +672,15 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                         ) : isOnClock ? (
                           <span className="block pt-2 text-[10px] font-semibold uppercase text-emerald-400">
                             On the clock
+                          </span>
+                        ) : isSkipped ? (
+                          <span className="block pt-2 text-[10px] font-semibold uppercase text-amber-400">
+                            ⏭ Skipped
+                            {returnable && (
+                              <span className="block text-[9px] font-medium normal-case text-amber-300/80">
+                                click to fill
+                              </span>
+                            )}
                           </span>
                         ) : null}
                       </td>

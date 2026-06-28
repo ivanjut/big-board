@@ -4,7 +4,7 @@ import { canEdit } from "@/lib/editToken";
 
 export const runtime = "nodejs";
 
-// POST /api/draft/[id]/reset — clear all picks and return to pick 1.
+// POST /api/draft/[id]/reset — clear all picks and skips, return to pick 1.
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -15,6 +15,7 @@ export async function POST(
 
   const sb = supabaseAdmin();
   await sb.from("picks").delete().eq("draft_id", id);
+  await sb.from("skipped_picks").delete().eq("draft_id", id);
   await sb
     .from("drafts")
     .update({
