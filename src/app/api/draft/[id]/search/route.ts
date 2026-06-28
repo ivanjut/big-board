@@ -29,10 +29,13 @@ export async function GET(
     .eq("draft_id", id);
   const draftedIds = new Set((drafted ?? []).map((d) => d.player_id));
 
+  // Order by rank in the query so the limited window keeps the best-ranked
+  // matches (the pool is hundreds deep). Unranked players (e.g. IDPs) sort last.
   let query = sb
     .from("players")
-    .select("id,name,position,team,is_idp")
+    .select("id,name,position,team,is_idp,rank")
     .ilike("name", `%${q}%`)
+    .order("rank", { ascending: true, nullsFirst: false })
     .limit(40);
   if (!draft.include_idp) query = query.eq("is_idp", false);
 
@@ -43,10 +46,14 @@ export async function GET(
   const results = (players ?? [])
     .filter((p) => !draftedIds.has(p.id))
     .sort((a, b) => {
-      // Prefer names that start with the query, then shorter names.
+      // Prefer names that start with the query, then better (lower) rank, then
+      // shorter names as a final tiebreak.
       const aStarts = a.name.toLowerCase().startsWith(lower) ? 0 : 1;
       const bStarts = b.name.toLowerCase().startsWith(lower) ? 0 : 1;
       if (aStarts !== bStarts) return aStarts - bStarts;
+      const ar = a.rank ?? Number.MAX_SAFE_INTEGER;
+      const br = b.rank ?? Number.MAX_SAFE_INTEGER;
+      if (ar !== br) return ar - br;
       return a.name.length - b.name.length;
     })
     .slice(0, 12)

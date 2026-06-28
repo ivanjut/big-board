@@ -50,11 +50,25 @@ supabase status -o env   # copy API URL + anon/service keys into .env.local
 # 4. Apply the schema and seed the player database
 supabase db reset
 
-# 5. Run the dev server
+# 5. Load real player rankings (FantasyPros half-PPR). Optional — db reset seeds a
+#    sample pool — but recommended for a real, current player list.
+npm run import:players
+
+# 6. Run the dev server
 npm run dev          # http://localhost:3000
 ```
 
 `.env.local` is gitignored.
+
+> **Refreshing the player pool.** `npm run import:players` pulls the current
+> [FantasyPros half-PPR rankings](https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php)
+> and upserts them into `public.players` (keyed by a stable FantasyPros id, so re-running
+> updates ranks/teams in place rather than duplicating). Run it any time to refresh. It
+> prunes players who fell off the rankings, but keeps anyone already drafted so in-progress
+> drafts never break. For a pristine pool with no leftover sample rows, run
+> `supabase db reset && npm run import:players` (this wipes local drafts). Add `--dry-run`
+> to preview without writing. IDPs aren't in the half-PPR source, so the curated IDP list
+> from the seed is left untouched.
 
 > **Docker must be running first.** The local Supabase stack runs in Docker (OrbStack
 > on this machine), so start that before `supabase start`. After a reboot the containers

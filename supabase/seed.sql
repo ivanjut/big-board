@@ -1,5 +1,7 @@
 -- Seed data: a curated sample of recognizable NFL players for the draft board.
--- This is sample data for v1, not a live/authoritative roster source.
+-- This is an offline fallback, not the live source. Run `npm run import:players`
+-- (scripts/import-players.mjs) to replace the offensive/K/DST pool with current
+-- FantasyPros half-PPR rankings; that import keeps the IDP rows below untouched.
 -- is_idp = true marks individual defensive players (filtered out when a draft excludes IDPs).
 
 insert into public.players (name, position, team, is_idp) values

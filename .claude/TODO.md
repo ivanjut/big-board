@@ -8,12 +8,10 @@ CHANGELOG or delete once shipped).
 
 ## Planned features
 
-- [ ] **Real player data instead of the seeded sample.** v1 ships ~130 curated players in
-  `supabase/seed.sql`. Replace with a live/authoritative source.
-  - Pick a source (e.g. a fantasy/NFL stats API or a maintained dataset) and add an
-    import/refresh script that upserts into `public.players`.
-  - Keep the `is_idp` flag and positions in sync so the IDP toggle and search still work.
-  - Consider periodic refresh + handling of player team changes.
+- [ ] **IDP data source.** FantasyPros' half-PPR cheatsheet (the import source) has no
+  individual defensive players, so the IDP pool is still the curated seed list. Wire up a
+  second source (e.g. FantasyPros' IDP rankings) into `scripts/import-players.mjs` so the
+  IDP toggle reflects real, refreshable rankings too.
 
 ## Follow-ups from the draft-header rework
 
