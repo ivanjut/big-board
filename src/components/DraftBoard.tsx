@@ -13,6 +13,7 @@ import {
   totalPicks,
   type DraftState,
 } from "@/lib/draftLogic";
+import { boardToCsv, boardToXlsx, slugifyName } from "@/lib/exportBoard";
 import { PlayerSearch } from "./PlayerSearch";
 import { PickTimer } from "./PickTimer";
 import { DraftSettingsModal } from "./DraftSettingsModal";
@@ -95,6 +96,79 @@ function MoreMenu({ onReset }: { onReset: () => void }) {
             >
               Reset draft…
             </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// "Download" split menu: pick CSV (plain) or Excel (.xlsx, keeps colors). The
+// footer note spells out the difference between the two formats.
+function DownloadMenu({
+  onDownload,
+}: {
+  onDownload: (format: "csv" | "xlsx") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const item =
+    "block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-800";
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Download board"
+        className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
+      >
+        ↓ Download
+      </button>
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            aria-hidden
+            onClick={() => setOpen(false)}
+          />
+          <div
+            role="menu"
+            className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-slate-700 bg-slate-900 p-1 shadow-xl"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onDownload("xlsx");
+              }}
+              className={item}
+            >
+              <span className="font-medium text-slate-100">Excel (.xlsx)</span>
+              <span className="block text-xs text-slate-500">
+                Round × team grid with the position colors. Opens in Excel &
+                Google Sheets.
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onDownload("csv");
+              }}
+              className={item}
+            >
+              <span className="font-medium text-slate-100">CSV</span>
+              <span className="block text-xs text-slate-500">
+                Same grid as plain text — opens anywhere.
+              </span>
+            </button>
+            <p className="border-t border-slate-800 px-3 py-2 text-[11px] leading-snug text-slate-500">
+              Only the Excel export keeps the QB/RB/WR/TE/DEF cell colors — a CSV
+              is plain text and can&apos;t store them.
+            </p>
           </div>
         </>
       )}
@@ -198,6 +272,32 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     (payload: { teamA: number; teamB: number; aToB: number[]; bToA: number[] }) =>
       post("trade", payload),
     [post],
+  );
+
+  // Build the board export client-side and trigger a download. CSV is plain
+  // text; .xlsx is a real colored workbook that opens cleanly in Excel & Sheets.
+  const downloadBoard = useCallback(
+    (format: "csv" | "xlsx") => {
+      if (!state) return;
+      const blob =
+        format === "csv"
+          ? // Leading BOM so Excel reads the UTF-8 CSV (positions) correctly.
+            new Blob(["\uFEFF" + boardToCsv(state)], {
+              type: "text/csv;charset=utf-8",
+            })
+          : new Blob([boardToXlsx(state)], {
+              type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${slugifyName(state.draft.name)}-board.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    [state],
   );
 
   async function unlock(e: React.FormEvent) {
@@ -339,6 +439,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           >
             {copied ? "Copied!" : "Share link"}
           </button>
+          <DownloadMenu onDownload={downloadBoard} />
           {canEdit && (
             <button
               onClick={() => setShowSettings(true)}
