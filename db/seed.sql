@@ -4,7 +4,7 @@
 -- FantasyPros half-PPR rankings; that import keeps the IDP rows below untouched.
 -- is_idp = true marks individual defensive players (filtered out when a draft excludes IDPs).
 
-insert into public.players (name, position, team, is_idp) values
+insert into players (name, position, team, is_idp) values
   -- Quarterbacks
   ('Patrick Mahomes', 'QB', 'KC', false),
   ('Josh Allen', 'QB', 'BUF', false),

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { getDb } from "@/lib/db";
 import { setEditCookie } from "@/lib/editToken";
 
 export const runtime = "nodejs";
@@ -31,41 +31,41 @@ export async function POST(req: NextRequest) {
   if (pickSeconds !== null && !(pickSeconds > 0 && pickSeconds <= 3600))
     return NextResponse.json({ error: "Pick time limit must be between 1 and 3600 seconds." }, { status: 400 });
 
-  const sb = supabaseAdmin();
+  const db = getDb();
   const password_hash = await bcrypt.hash(password, 10);
 
-  const { data: draft, error } = await sb
-    .from("drafts")
-    .insert({
-      name,
-      num_slots: slots,
-      num_rounds: rounds,
-      include_idp: includeIdp,
-      pick_seconds: pickSeconds,
-      password_hash,
-    })
-    .select("id")
-    .single();
-
-  if (error || !draft) {
-    return NextResponse.json({ error: error?.message ?? "Failed to create draft." }, { status: 500 });
+  let draftId: string;
+  try {
+    const [draft] = await db`
+      insert into drafts (name, num_slots, num_rounds, include_idp, pick_seconds, password_hash)
+      values (${name}, ${slots}, ${rounds}, ${includeIdp}, ${pickSeconds}, ${password_hash})
+      returning id
+    `;
+    draftId = draft.id as string;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to create draft.";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  const memberRows = Array.from({ length: slots }, (_, i) => {
+  // One member row per slot, defaulting blank names to "Team N".
+  const slotNums = Array.from({ length: slots }, (_, i) => i + 1);
+  const names = slotNums.map((slot, i) => {
     const m = (members[i] ?? {}) as { name?: string };
-    return {
-      draft_id: draft.id as string,
-      slot: i + 1,
-      name: (m.name && String(m.name).trim()) || `Team ${i + 1}`,
-    };
+    return (m.name && String(m.name).trim()) || `Team ${slot}`;
   });
-
-  const { error: mErr } = await sb.from("draft_members").insert(memberRows);
-  if (mErr) {
-    return NextResponse.json({ error: mErr.message }, { status: 500 });
+  try {
+    await db.query(
+      `insert into draft_members (draft_id, slot, name)
+       select $1::uuid, s.slot, s.name
+       from unnest($2::int[], $3::text[]) as s(slot, name)`,
+      [draftId, slotNums, names],
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to add members.";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 
   // The creator (commissioner) is unlocked for editing immediately.
-  await setEditCookie(draft.id as string);
-  return NextResponse.json({ id: draft.id });
+  await setEditCookie(draftId);
+  return NextResponse.json({ id: draftId });
 }

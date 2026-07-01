@@ -20,77 +20,83 @@ live in view-only mode. Works on desktop and phone.
   available to everyone.
 - **Edit settings live** — the commissioner can adjust name, rounds, timer, IDPs, and
   member names/positions mid-draft (with guards once picks exist).
-- **Live sharing** — view-only via Supabase Realtime; editing is unlocked with the draft
-  password (server-checked, signed cookie).
+- **Live sharing** — view-only board that refreshes by polling; editing is unlocked with
+  the draft password (server-checked, signed cookie).
 
 ## Tech stack
 
 - [Next.js](https://nextjs.org) (App Router, TypeScript) + Tailwind CSS
-- [Supabase](https://supabase.com) (Postgres + Realtime), run locally via the Supabase CLI + Docker
+- [Neon](https://neon.tech) Postgres (serverless driver, `@neondatabase/serverless`),
+  provisioned through the [Vercel](https://vercel.com) Marketplace
+- Deployed on Vercel
 
-All writes go through Next.js API routes using the Supabase service role; the browser
-only reads and subscribes to Realtime.
+All writes go through Next.js API routes over a single privileged Neon connection; the
+browser only reads (via those routes) and polls `/api/draft/[id]/state` for live updates.
+There is no separate realtime service.
 
 ## Local development
 
-Requires **Node 20+**, the **Supabase CLI**, and **Docker**.
+Requires **Node 20+** and a **Neon Postgres database** (create one free via the Vercel
+dashboard → Storage → Neon, or at [neon.tech](https://neon.tech)).
 
 ```bash
 # 1. Install dependencies
 npm install
 
-# 2. Start the local Supabase stack (Postgres + Realtime)
-supabase start
+# 2. Create .env.local (see .env.example) and paste your Neon connection string:
+#      DATABASE_URL="postgresql://…@ep-….neon.tech/neondb?sslmode=require"   (Pooled)
+#      EDIT_TOKEN_SECRET="<random hex>"   (node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
 
-# 3. Create .env.local from the printed credentials
-supabase status -o env   # copy API URL + anon/service keys into .env.local
-#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-#   SUPABASE_SERVICE_ROLE_KEY, and a random EDIT_TOKEN_SECRET
+# 3. Create the schema and seed a sample player pool
+npm run db:setup
 
-# 4. Apply the schema and seed the player database
-supabase db reset
-
-# 5. Load real player rankings (FantasyPros half-PPR). Optional — db reset seeds a
+# 4. Load real player rankings (FantasyPros half-PPR). Optional — db:setup seeds a
 #    sample pool — but recommended for a real, current player list.
 npm run import:players
 
-# 6. Run the dev server
+# 5. Run the dev server
 npm run dev          # http://localhost:3000
 ```
 
-`.env.local` is gitignored.
+`.env.local` is gitignored; `.env.example` documents the required variables.
+
+**Schema management.** `npm run db:setup` applies [`db/schema.sql`](./db/schema.sql) and
+seeds [`db/seed.sql`](./db/seed.sql) if the players table is empty. It's idempotent
+(safe to re-run). Use `npm run db:setup -- --reset` for a clean slate (drops every app
+table first — wipes drafts) or `-- --skip-seed` to leave players untouched. You can also
+apply the schema directly with `psql "$DATABASE_URL" -f db/schema.sql`.
 
 > **Refreshing the player pool.** `npm run import:players` pulls the current
 > [FantasyPros half-PPR rankings](https://www.fantasypros.com/nfl/rankings/half-point-ppr-cheatsheets.php)
-> and upserts them into `public.players` (keyed by a stable FantasyPros id, so re-running
+> and upserts them into `players` (keyed by a stable FantasyPros id, so re-running
 > updates ranks/teams in place rather than duplicating). Run it any time to refresh. It
 > prunes players who fell off the rankings, but keeps anyone already drafted so in-progress
 > drafts never break. For a pristine pool with no leftover sample rows, run
-> `supabase db reset && npm run import:players` (this wipes local drafts). Add `--dry-run`
-> to preview without writing. IDPs aren't in the half-PPR source, so the curated IDP list
-> from the seed is left untouched.
+> `npm run db:setup -- --reset && npm run import:players` (this wipes drafts). Add
+> `--dry-run` to preview without writing. IDPs aren't in the half-PPR source, so the
+> curated IDP list from the seed is left untouched.
 
-> **Docker must be running first.** The local Supabase stack runs in Docker (OrbStack
-> on this machine), so start that before `supabase start`. After a reboot the containers
-> are down, and the app's API routes will fail until they're back up.
+## Deploying to Vercel
+
+1. Push this repo to GitHub and import it in Vercel (**New Project**).
+2. In the project's **Storage** tab, create/attach a **Neon** database. Vercel injects
+   `DATABASE_URL` into the project's environment automatically.
+3. Add **`EDIT_TOKEN_SECRET`** under **Settings → Environment Variables** (a random hex
+   string). Redeploy so it takes effect.
+4. Run the schema against the production database once — either
+   `DATABASE_URL="<prod url>" npm run db:setup` locally, or `psql "<prod url>" -f
+   db/schema.sql`. Optionally `npm run import:players` with the prod URL for live rankings.
 
 ## Troubleshooting
 
-**`POST /api/draft` (or any API route) returns 500 / "fetch failed".** The most common
-cause is that the local Supabase stack is down, so the service-role client can't reach
-Postgres at `http://127.0.0.1:54321`. Bring it back up:
+**`POST /api/draft` (or any API route) returns 500.** Usually `DATABASE_URL` is missing
+or wrong. Confirm it's set in `.env.local` (local) or the Vercel project (prod), that it's
+the **Pooled** Neon connection string, and that the schema has been applied
+(`npm run db:setup`). Quick connectivity check:
 
 ```bash
-open -a OrbStack                 # 1. start Docker (wait until `docker info` succeeds)
-supabase start                   # 2. boot the Supabase stack (wait for db container = healthy)
-npm run dev                      # 3. run the dev server
-
-# Quick check that Supabase is reachable (expect an HTTP code, not 000):
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:54321/rest/v1/
+node -e "import('@neondatabase/serverless').then(({neon})=>neon(process.env.DATABASE_URL)\`select 1 as ok\`.then(r=>console.log(r)).catch(e=>console.error(e.message)))"
 ```
-
-If `supabase status` errors with "Cannot connect to the Docker daemon", Docker itself
-isn't up yet — start OrbStack and wait for `docker info` to succeed before retrying.
 
 ## Roadmap
 

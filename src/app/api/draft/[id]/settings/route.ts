@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { getDb } from "@/lib/db";
 import { canEdit } from "@/lib/editToken";
 import { totalPicks } from "@/lib/draftLogic";
 
@@ -25,36 +25,38 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const sb = supabaseAdmin();
-  const { data: draft } = await sb
-    .from("drafts")
-    .select("num_slots,num_rounds,current_pick,status")
-    .eq("id", id)
-    .single();
+  const db = getDb();
+  const [draft] = await db`
+    select num_slots, num_rounds, current_pick, status from drafts where id = ${id}
+  `;
   if (!draft) return NextResponse.json({ error: "Draft not found." }, { status: 404 });
 
-  const { data: picks } = await sb
-    .from("picks")
-    .select("round")
-    .eq("draft_id", id);
-  const pickCount = picks?.length ?? 0;
-  const maxDraftedRound = picks?.reduce((m, p) => Math.max(m, p.round), 0) ?? 0;
+  const picks = await db`select round from picks where draft_id = ${id}`;
+  const pickCount = picks.length;
+  const maxDraftedRound = picks.reduce((m, p) => Math.max(m, p.round as number), 0);
 
-  const update: Record<string, unknown> = {};
+  // Accumulate the SET clause as parameterized fragments; column names are
+  // hardcoded (never user input), values are bound.
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  const setCol = (col: string, v: unknown) => {
+    vals.push(v);
+    sets.push(`${col} = $${vals.length}`);
+  };
 
   if (typeof body.name === "string") {
     const name = body.name.trim();
     if (!name) return NextResponse.json({ error: "Draft name can't be empty." }, { status: 400 });
-    update.name = name;
+    setCol("name", name);
   }
 
-  if (typeof body.includeIdp === "boolean") update.include_idp = body.includeIdp;
+  if (typeof body.includeIdp === "boolean") setCol("include_idp", body.includeIdp);
 
   if ("pickSeconds" in body) {
     const ps = body.pickSeconds === null ? null : Number(body.pickSeconds);
     if (ps !== null && !(ps > 0 && ps <= 3600))
       return NextResponse.json({ error: "Pick time limit must be 1–3600 seconds." }, { status: 400 });
-    update.pick_seconds = ps;
+    setCol("pick_seconds", ps);
   }
 
   let finalRounds = draft.num_rounds;
@@ -68,7 +70,7 @@ export async function PATCH(
         { status: 409 },
       );
     finalRounds = rounds;
-    update.num_rounds = rounds;
+    setCol("num_rounds", rounds);
   }
 
   let finalSlots = draft.num_slots;
@@ -82,29 +84,32 @@ export async function PATCH(
         { status: 409 },
       );
     finalSlots = slots;
-    update.num_slots = slots;
+    setCol("num_slots", slots);
   }
 
   // Drop any skipped picks that fall outside a now-smaller board so they don't
   // keep the draft from ever completing.
   const total = totalPicks(finalSlots, finalRounds);
-  await sb.from("skipped_picks").delete().eq("draft_id", id).gt("pick_number", total);
-  const { count: openSkips } = await sb
-    .from("skipped_picks")
-    .select("id", { count: "exact", head: true })
-    .eq("draft_id", id);
+  await db`delete from skipped_picks where draft_id = ${id} and pick_number > ${total}`;
+  const [{ count: openSkips }] = await db`
+    select count(*)::int as count from skipped_picks where draft_id = ${id}
+  `;
 
   // Keep status consistent if the board size changed for a started draft.
   // (Leave 'pending' and 'paused' drafts in their current state.) The draft is
   // only complete once the frontier has run off the end and no skips remain.
   if (draft.status === "active" || draft.status === "complete") {
-    update.status =
-      draft.current_pick > total && (openSkips ?? 0) === 0 ? "complete" : "active";
+    setCol("status", draft.current_pick > total && (openSkips ?? 0) === 0 ? "complete" : "active");
   }
 
-  if (Object.keys(update).length > 0) {
-    const { error } = await sb.from("drafts").update(update).eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (sets.length > 0) {
+    vals.push(id);
+    try {
+      await db.query(`update drafts set ${sets.join(", ")} where id = $${vals.length}`, vals);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to update the draft.";
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   }
 
   // Members: upsert names by slot, then drop any beyond the slot count.
@@ -112,17 +117,24 @@ export async function PATCH(
     const rows = (body.members as MemberInput[])
       .filter((m) => Number(m.slot) >= 1 && Number(m.slot) <= finalSlots)
       .map((m, i) => ({
-        draft_id: id,
         slot: Number(m.slot),
         name: (m.name && String(m.name).trim()) || `Team ${m.slot ?? i + 1}`,
       }));
     if (rows.length) {
-      const { error } = await sb
-        .from("draft_members")
-        .upsert(rows, { onConflict: "draft_id,slot" });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      try {
+        await db.query(
+          `insert into draft_members (draft_id, slot, name)
+           select $1::uuid, s.slot, s.name
+           from unnest($2::int[], $3::text[]) as s(slot, name)
+           on conflict (draft_id, slot) do update set name = excluded.name`,
+          [id, rows.map((r) => r.slot), rows.map((r) => r.name)],
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to update members.";
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
     }
-    await sb.from("draft_members").delete().eq("draft_id", id).gt("slot", finalSlots);
+    await db`delete from draft_members where draft_id = ${id} and slot > ${finalSlots}`;
   }
 
   return NextResponse.json({ ok: true });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { getDb } from "@/lib/db";
 import { canEdit } from "@/lib/editToken";
 
 export const runtime = "nodejs";
@@ -10,44 +10,35 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const sb = supabaseAdmin();
+  const db = getDb();
 
-  const { data: d } = await sb
-    .from("drafts")
-    .select(
-      "id,name,num_slots,num_rounds,include_idp,pick_seconds,current_pick,current_pick_started_at,paused_at,status",
-    )
-    .eq("id", id)
-    .single();
+  const [d] = await db`
+    select id, name, num_slots, num_rounds, include_idp, pick_seconds,
+           current_pick, current_pick_started_at, paused_at, status
+    from drafts where id = ${id}
+  `;
 
   if (!d) return NextResponse.json({ error: "Draft not found." }, { status: 404 });
 
-  const { data: members } = await sb
-    .from("draft_members")
-    .select("slot,name")
-    .eq("draft_id", id)
-    .order("slot");
+  const members = await db`
+    select slot, name from draft_members where draft_id = ${id} order by slot
+  `;
 
-  const { data: picks } = await sb
-    .from("picks")
-    .select("pick_number,round,slot,player_id,player_name,player_position,player_team")
-    .eq("draft_id", id)
-    .order("pick_number");
+  const picks = await db`
+    select pick_number, round, slot, player_id, player_name, player_position, player_team
+    from picks where draft_id = ${id} order by pick_number
+  `;
 
   // Chronological so the client's buildOwnerMap resolves latest-trade-wins.
-  const { data: trades } = await sb
-    .from("pick_trades")
-    .select("transaction_id,pick_number,from_slot,to_slot,created_at")
-    .eq("draft_id", id)
-    .order("created_at")
-    .order("id");
+  const trades = await db`
+    select transaction_id, pick_number, from_slot, to_slot, created_at
+    from pick_trades where draft_id = ${id} order by created_at, id
+  `;
 
   // Skipped-but-unfilled picks (open, returnable cells on the board).
-  const { data: skipped } = await sb
-    .from("skipped_picks")
-    .select("pick_number")
-    .eq("draft_id", id)
-    .order("pick_number");
+  const skipped = await db`
+    select pick_number from skipped_picks where draft_id = ${id} order by pick_number
+  `;
 
   return NextResponse.json({
     draft: {
@@ -62,11 +53,11 @@ export async function GET(
       pausedAt: d.paused_at,
       status: d.status,
     },
-    members: (members ?? []).map((m) => ({
+    members: members.map((m) => ({
       slot: m.slot,
       name: m.name,
     })),
-    picks: (picks ?? []).map((p) => ({
+    picks: picks.map((p) => ({
       pickNumber: p.pick_number,
       round: p.round,
       slot: p.slot,
@@ -75,14 +66,14 @@ export async function GET(
       playerPosition: p.player_position,
       playerTeam: p.player_team,
     })),
-    trades: (trades ?? []).map((t) => ({
+    trades: trades.map((t) => ({
       transactionId: t.transaction_id,
       pickNumber: t.pick_number,
       fromSlot: t.from_slot,
       toSlot: t.to_slot,
       createdAt: t.created_at,
     })),
-    skipped: (skipped ?? []).map((s) => s.pick_number),
+    skipped: skipped.map((s) => s.pick_number),
     canEdit: await canEdit(id),
   });
 }

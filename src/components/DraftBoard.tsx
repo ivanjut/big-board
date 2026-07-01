@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import {
   buildOwnerMap,
   cellToPick,
@@ -201,52 +200,24 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     refetch();
   }, [refetch]);
 
-  // Realtime: any pick change for this draft refreshes the board immediately.
+  // Polling keeps every viewer's board fresh — picks, trades, skips, and
+  // draft-row changes (start, settings) all show up on the next tick. This is
+  // the sole live-update mechanism now that the app is off Supabase Realtime;
+  // 2s trades a little latency for zero extra infra. Skip while the tab is
+  // hidden so backgrounded viewers don't poll needlessly.
   useEffect(() => {
-    const sb = supabaseBrowser();
-    const channel = sb
-      .channel(`draft-${draftId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "picks",
-          filter: `draft_id=eq.${draftId}`,
-        },
-        () => refetch(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "pick_trades",
-          filter: `draft_id=eq.${draftId}`,
-        },
-        () => refetch(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "skipped_picks",
-          filter: `draft_id=eq.${draftId}`,
-        },
-        () => refetch(),
-      )
-      .subscribe();
-    return () => {
-      sb.removeChannel(channel);
+    const t = setInterval(() => {
+      if (!document.hidden) refetch();
+    }, 2000);
+    // Refresh immediately when a hidden tab is brought back to the foreground.
+    const onVisible = () => {
+      if (!document.hidden) refetch();
     };
-  }, [draftId, refetch]);
-
-  // Light polling so viewers also pick up draft-row changes (start, settings),
-  // which aren't broadcast over Realtime (the drafts table is server-only).
-  useEffect(() => {
-    const t = setInterval(refetch, 5000);
-    return () => clearInterval(t);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [refetch]);
 
   const post = useCallback(

@@ -7,10 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db:setup": "node scripts/db-setup.mjs",
     "import:players": "node scripts/import-players.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
+    "@neondatabase/serverless": "^1.1.0",
     "bcryptjs": "^2.4.3",
     "next": "16.2.6",
     "react": "19.2.4",
@@ -22,9 +23,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "ws": "^8.21.0"
   }
 }

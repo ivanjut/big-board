@@ -1,23 +1,27 @@
 // Refresh the player pool from FantasyPros rankings.
 //
 // Pulls the half-point-PPR draft cheatsheet, which embeds its data as a
-// `var ecrData = {...}` blob, and upserts every player into public.players keyed
-// by their FantasyPros id. Re-running updates teams/positions/ranks in place
-// (ids stay stable, so existing picks keep working) and prunes players who have
-// dropped off the rankings — except any that are already drafted, which are kept
-// so the foreign key from picks never breaks. Curated IDP rows (is_idp = true)
-// are left untouched; FantasyPros' half-PPR cheatsheet doesn't include them.
+// `var ecrData = {...}` blob, and upserts every player into the players table
+// keyed by their FantasyPros id. Re-running updates teams/positions/ranks in
+// place (ids stay stable, so existing picks keep working) and prunes players who
+// have dropped off the rankings — except any that are already drafted, which are
+// kept so the foreign key from picks never breaks. Curated IDP rows (is_idp =
+// true) are left untouched; FantasyPros' half-PPR cheatsheet doesn't include them.
 //
 // Usage:
 //   node scripts/import-players.mjs            # refresh from the default source
 //   node scripts/import-players.mjs --dry-run  # fetch + report, write nothing
 //   FANTASYPROS_URL=... node scripts/import-players.mjs   # override the source
 //
-// Reads NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from .env.local.
+// Reads DATABASE_URL from .env.local (or the environment).
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { neon, types } from "@neondatabase/serverless";
+
+// Parse int8/bigint (OID 20) as a plain number; every id here is small.
+types.setTypeParser(20, (v) => parseInt(v, 10));
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE_URL =
@@ -113,65 +117,36 @@ function toRows(ecr) {
   return rows;
 }
 
-// Minimal PostgREST client over fetch. Using the REST API directly (instead of
-// @supabase/supabase-js) keeps this script free of the realtime/WebSocket
-// dependency that supabase-js needs but Node < 22 doesn't provide natively.
-function makeRest(supabaseUrl, key) {
-  const base = `${supabaseUrl.replace(/\/$/, "")}/rest/v1`;
-  const headers = (extra = {}) => ({
-    apikey: key,
-    Authorization: `Bearer ${key}`,
-    "Content-Type": "application/json",
-    ...extra,
-  });
-  return {
-    // Paginated read that walks past PostgREST's max-rows cap.
-    async getAll(path) {
-      const page = 1000;
-      const all = [];
-      for (let from = 0; ; from += page) {
-        const res = await fetch(`${base}/${path}`, {
-          headers: headers({ Range: `${from}-${from + page - 1}`, "Range-Unit": "items" }),
-        });
-        if (!res.ok) throw new Error(`GET ${path} -> HTTP ${res.status}: ${await res.text()}`);
-        const batch = await res.json();
-        all.push(...batch);
-        if (batch.length < page) return all;
-      }
-    },
-    async upsert(table, rows, onConflict) {
-      const res = await fetch(`${base}/${table}?on_conflict=${onConflict}`, {
-        method: "POST",
-        headers: headers({ Prefer: "resolution=merge-duplicates,return=minimal" }),
-        body: JSON.stringify(rows),
-      });
-      if (!res.ok) throw new Error(`Upsert ${table} -> HTTP ${res.status}: ${await res.text()}`);
-    },
-    async deleteIn(table, col, ids) {
-      const res = await fetch(`${base}/${table}?${col}=in.(${ids.join(",")})`, {
-        method: "DELETE",
-        headers: headers({ Prefer: "return=minimal" }),
-      });
-      if (!res.ok) throw new Error(`Delete ${table} -> HTTP ${res.status}: ${await res.text()}`);
-    },
-    async count(table) {
-      const res = await fetch(`${base}/${table}?select=id`, {
-        headers: headers({ Prefer: "count=exact", Range: "0-0" }),
-      });
-      const cr = res.headers.get("content-range");
-      return cr ? Number(cr.split("/")[1]) : null;
-    },
-  };
+// Upsert a chunk of players by their stable FantasyPros id, updating name/team/
+// position/rank in place. Columns are passed as parallel arrays and zipped with
+// unnest, so it's a single round-trip per chunk.
+async function upsertChunk(sql, chunk) {
+  await sql.query(
+    `insert into players (fantasypros_id, name, position, team, rank, is_idp)
+     select * from unnest(
+       $1::bigint[], $2::text[], $3::text[], $4::text[], $5::int[], $6::boolean[]
+     )
+     on conflict (fantasypros_id) do update set
+       name = excluded.name,
+       position = excluded.position,
+       team = excluded.team,
+       rank = excluded.rank`,
+    [
+      chunk.map((r) => r.fantasypros_id),
+      chunk.map((r) => r.name),
+      chunk.map((r) => r.position),
+      chunk.map((r) => r.team),
+      chunk.map((r) => r.rank),
+      chunk.map((r) => r.is_idp),
+    ],
+  );
 }
 
 async function main() {
   const env = { ...loadEnv(), ...process.env };
-  const url = env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    console.error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (set them in .env.local).",
-    );
+  const url = env.DATABASE_URL;
+  if (!url) {
+    console.error("Missing DATABASE_URL (set it in .env.local or the environment).");
     process.exit(1);
   }
 
@@ -194,13 +169,13 @@ async function main() {
     return;
   }
 
-  const rest = makeRest(url, key);
+  const sql = neon(url);
 
   // Upsert in chunks, keyed by the stable FantasyPros id.
   let upserted = 0;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
-    await rest.upsert("players", chunk, "fantasypros_id");
+    await upsertChunk(sql, chunk);
     upserted += chunk.length;
   }
   console.log(`Upserted ${upserted} players.`);
@@ -208,8 +183,8 @@ async function main() {
   // Prune stale non-IDP players: any without a current FantasyPros id (old seed
   // rows, or players who fell off the rankings) that aren't already drafted.
   const importedIds = new Set(rows.map((r) => r.fantasypros_id));
-  const referenced = new Set((await rest.getAll("picks?select=player_id")).map((r) => r.player_id));
-  const existing = await rest.getAll("players?select=id,fantasypros_id&is_idp=eq.false");
+  const referenced = new Set((await sql`select player_id from picks`).map((r) => r.player_id));
+  const existing = await sql`select id, fantasypros_id from players where is_idp = false`;
 
   const toDelete = existing
     .filter((p) => !(p.fantasypros_id != null && importedIds.has(Number(p.fantasypros_id))))
@@ -218,12 +193,14 @@ async function main() {
 
   let deleted = 0;
   for (let i = 0; i < toDelete.length; i += CHUNK) {
-    await rest.deleteIn("players", "id", toDelete.slice(i, i + CHUNK));
-    deleted += Math.min(CHUNK, toDelete.length - i);
+    const chunk = toDelete.slice(i, i + CHUNK);
+    await sql.query(`delete from players where id = any($1::bigint[])`, [chunk]);
+    deleted += chunk.length;
   }
   console.log(`Pruned ${deleted} stale non-IDP players (drafted players kept).`);
 
-  console.log(`Done. players now holds ${await rest.count("players")} rows.`);
+  const [{ n }] = await sql`select count(*)::int as n from players`;
+  console.log(`Done. players now holds ${n} rows.`);
 }
 
 main().catch((err) => {

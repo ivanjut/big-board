@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { getDb, UNIQUE_VIOLATION } from "@/lib/db";
 import { canEdit } from "@/lib/editToken";
 import { clockPick, isComplete, pickToCell, totalPicks } from "@/lib/draftLogic";
 
@@ -27,12 +27,10 @@ export async function POST(
   }
   if (!playerId) return NextResponse.json({ error: "A player is required." }, { status: 400 });
 
-  const sb = supabaseAdmin();
-  const { data: draft } = await sb
-    .from("drafts")
-    .select("num_slots,num_rounds,current_pick,status")
-    .eq("id", id)
-    .single();
+  const db = getDb();
+  const [draft] = await db`
+    select num_slots, num_rounds, current_pick, status from drafts where id = ${id}
+  `;
   if (!draft) return NextResponse.json({ error: "Draft not found." }, { status: 404 });
 
   if (draft.status === "pending")
@@ -43,11 +41,10 @@ export async function POST(
   const total = totalPicks(draft.num_slots, draft.num_rounds);
   const frontier = draft.current_pick;
 
-  const { data: skippedRows } = await sb
-    .from("skipped_picks")
-    .select("pick_number")
-    .eq("draft_id", id);
-  const skipped = (skippedRows ?? []).map((s) => s.pick_number);
+  const skippedRows = await db`
+    select pick_number from skipped_picks where draft_id = ${id}
+  `;
+  const skipped = skippedRows.map((s) => s.pick_number as number);
   const skippedSet = new Set(skipped);
 
   // A pick can be filled if it's the forward frontier (still within the draft)
@@ -62,42 +59,35 @@ export async function POST(
   if (!Number.isInteger(targetPick) || !isFillable(targetPick))
     return NextResponse.json({ error: "That pick isn't open to fill." }, { status: 409 });
 
-  const { data: player } = await sb
-    .from("players")
-    .select("id,name,position,team")
-    .eq("id", playerId)
-    .single();
+  const [player] = await db`
+    select id, name, position, team from players where id = ${playerId}
+  `;
   if (!player) return NextResponse.json({ error: "Player not found." }, { status: 404 });
 
   const { round, slot: snakeSlot } = pickToCell(targetPick, draft.num_slots);
 
   // If this pick was traded, the team that makes it is the latest owner.
-  const { data: lastTrade } = await sb
-    .from("pick_trades")
-    .select("to_slot")
-    .eq("draft_id", id)
-    .eq("pick_number", targetPick)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [lastTrade] = await db`
+    select to_slot from pick_trades
+    where draft_id = ${id} and pick_number = ${targetPick}
+    order by created_at desc, id desc
+    limit 1
+  `;
   const slot = lastTrade?.to_slot ?? snakeSlot;
 
-  const { error: insErr } = await sb.from("picks").insert({
-    draft_id: id,
-    pick_number: targetPick,
-    round,
-    slot,
-    player_id: player.id,
-    player_name: player.name,
-    player_position: player.position,
-    player_team: player.team,
-  });
-  if (insErr) {
+  try {
+    await db`
+      insert into picks
+        (draft_id, pick_number, round, slot, player_id, player_name, player_position, player_team)
+      values
+        (${id}, ${targetPick}, ${round}, ${slot}, ${player.id}, ${player.name}, ${player.position}, ${player.team})
+    `;
+  } catch (e) {
     // Unique violation -> player already drafted, or this pick was just taken.
-    const conflict = insErr.code === "23505";
+    const conflict = (e as { code?: string })?.code === UNIQUE_VIOLATION;
+    const msg = e instanceof Error ? e.message : "Failed to record the pick.";
     return NextResponse.json(
-      { error: conflict ? "That player was already drafted." : insErr.message },
+      { error: conflict ? "That player was already drafted." : msg },
       { status: conflict ? 409 : 500 },
     );
   }
@@ -105,24 +95,21 @@ export async function POST(
   // Clear the skipped marker if we just filled a deferred pick, and advance the
   // frontier only when the frontier pick itself was filled.
   if (skippedSet.has(targetPick)) {
-    await sb
-      .from("skipped_picks")
-      .delete()
-      .eq("draft_id", id)
-      .eq("pick_number", targetPick);
+    await db`
+      delete from skipped_picks where draft_id = ${id} and pick_number = ${targetPick}
+    `;
     skippedSet.delete(targetPick);
   }
   const nextFrontier = targetPick === frontier ? frontier + 1 : frontier;
   const done = isComplete(nextFrontier, [...skippedSet], total);
 
-  await sb
-    .from("drafts")
-    .update({
-      current_pick: nextFrontier,
-      current_pick_started_at: new Date().toISOString(),
-      status: done ? "complete" : "active",
-    })
-    .eq("id", id);
+  await db`
+    update drafts
+    set current_pick = ${nextFrontier},
+        current_pick_started_at = ${new Date().toISOString()},
+        status = ${done ? "complete" : "active"}
+    where id = ${id}
+  `;
 
   return NextResponse.json({ ok: true });
 }

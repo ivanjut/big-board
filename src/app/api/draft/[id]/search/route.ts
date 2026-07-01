@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -15,35 +15,33 @@ export async function GET(
   const q = raw.replace(/[%_]/g, "");
   if (q.length < 2) return NextResponse.json({ results: [] });
 
-  const sb = supabaseAdmin();
-  const { data: draft } = await sb
-    .from("drafts")
-    .select("include_idp")
-    .eq("id", id)
-    .single();
+  const db = getDb();
+  const [draft] = await db`select include_idp from drafts where id = ${id}`;
   if (!draft) return NextResponse.json({ error: "Draft not found." }, { status: 404 });
 
-  const { data: drafted } = await sb
-    .from("picks")
-    .select("player_id")
-    .eq("draft_id", id);
-  const draftedIds = new Set((drafted ?? []).map((d) => d.player_id));
+  const draftedRows = await db`select player_id from picks where draft_id = ${id}`;
+  const draftedIds = new Set(draftedRows.map((d) => d.player_id as number));
 
   // Order by rank in the query so the limited window keeps the best-ranked
   // matches (the pool is hundreds deep). Unranked players (e.g. IDPs) sort last.
-  let query = sb
-    .from("players")
-    .select("id,name,position,team,is_idp,rank")
-    .ilike("name", `%${q}%`)
-    .order("rank", { ascending: true, nullsFirst: false })
-    .limit(40);
-  if (!draft.include_idp) query = query.eq("is_idp", false);
-
-  const { data: players, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let players;
+  try {
+    players = await db.query(
+      `select id, name, position, team, is_idp, rank
+       from players
+       where name ilike $1
+       ${draft.include_idp ? "" : "and is_idp = false"}
+       order by rank asc nulls last
+       limit 40`,
+      [`%${q}%`],
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Search failed.";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   const lower = q.toLowerCase();
-  const results = (players ?? [])
+  const results = players
     .filter((p) => !draftedIds.has(p.id))
     .sort((a, b) => {
       // Prefer names that start with the query, then better (lower) rank, then

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { getDb } from "@/lib/db";
 import { setEditCookie } from "@/lib/editToken";
 
 export const runtime = "nodejs";
@@ -18,12 +18,8 @@ export async function POST(
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const sb = supabaseAdmin();
-  const { data: draft } = await sb
-    .from("drafts")
-    .select("password_hash")
-    .eq("id", id)
-    .single();
+  const db = getDb();
+  const [draft] = await db`select password_hash from drafts where id = ${id}`;
 
   if (!draft) return NextResponse.json({ error: "Draft not found." }, { status: 404 });
 

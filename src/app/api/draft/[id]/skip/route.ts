@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { getDb } from "@/lib/db";
 import { canEdit } from "@/lib/editToken";
 import { totalPicks } from "@/lib/draftLogic";
 
@@ -15,12 +15,10 @@ export async function POST(
   if (!(await canEdit(id)))
     return NextResponse.json({ error: "Not authorized to edit this draft." }, { status: 403 });
 
-  const sb = supabaseAdmin();
-  const { data: draft } = await sb
-    .from("drafts")
-    .select("num_slots,num_rounds,current_pick,status")
-    .eq("id", id)
-    .single();
+  const db = getDb();
+  const [draft] = await db`
+    select num_slots, num_rounds, current_pick, status from drafts where id = ${id}
+  `;
   if (!draft) return NextResponse.json({ error: "Draft not found." }, { status: 404 });
 
   if (draft.status === "pending")
@@ -36,22 +34,27 @@ export async function POST(
   if (frontier > total)
     return NextResponse.json({ error: "No pick to skip." }, { status: 409 });
 
-  const { error: insErr } = await sb
-    .from("skipped_picks")
-    .insert({ draft_id: id, pick_number: frontier });
-  // Unique violation just means it's already marked; treat as success.
-  if (insErr && insErr.code !== "23505")
-    return NextResponse.json({ error: insErr.message }, { status: 500 });
+  // A unique violation just means it's already marked; on conflict do nothing
+  // treats that as success.
+  try {
+    await db`
+      insert into skipped_picks (draft_id, pick_number)
+      values (${id}, ${frontier})
+      on conflict (draft_id, pick_number) do nothing
+    `;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed to skip the pick.";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   // A skip always leaves an open pick behind, so the draft can never complete here.
-  await sb
-    .from("drafts")
-    .update({
-      current_pick: frontier + 1,
-      current_pick_started_at: new Date().toISOString(),
-      status: "active",
-    })
-    .eq("id", id);
+  await db`
+    update drafts
+    set current_pick = ${frontier + 1},
+        current_pick_started_at = ${new Date().toISOString()},
+        status = 'active'
+    where id = ${id}
+  `;
 
   return NextResponse.json({ ok: true });
 }

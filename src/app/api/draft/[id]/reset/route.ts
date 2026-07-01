@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { getDb } from "@/lib/db";
 import { canEdit } from "@/lib/editToken";
 
 export const runtime = "nodejs";
@@ -13,17 +13,14 @@ export async function POST(
   if (!(await canEdit(id)))
     return NextResponse.json({ error: "Not authorized to edit this draft." }, { status: 403 });
 
-  const sb = supabaseAdmin();
-  await sb.from("picks").delete().eq("draft_id", id);
-  await sb.from("skipped_picks").delete().eq("draft_id", id);
-  await sb
-    .from("drafts")
-    .update({
-      current_pick: 1,
-      current_pick_started_at: new Date().toISOString(),
-      status: "active",
-    })
-    .eq("id", id);
+  const db = getDb();
+  await db`delete from picks where draft_id = ${id}`;
+  await db`delete from skipped_picks where draft_id = ${id}`;
+  await db`
+    update drafts
+    set current_pick = 1, current_pick_started_at = ${new Date().toISOString()}, status = 'active'
+    where id = ${id}
+  `;
 
   return NextResponse.json({ ok: true });
 }
