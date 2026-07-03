@@ -7,7 +7,6 @@ import {
   cellToPick,
   clockPick,
   effectiveOwnerSlot,
-  nextClockPick,
   pickToCell,
   totalPicks,
   type DraftState,
@@ -17,6 +16,111 @@ import { PlayerSearch } from "./PlayerSearch";
 import { PickTimer } from "./PickTimer";
 import { DraftSettingsModal } from "./DraftSettingsModal";
 import { TradeDialog } from "./TradeDialog";
+
+// ── Lucide-style line/solid icons matching the Big Board scoreboard design ──
+const strokeProps = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+type IconProps = { className?: string };
+const ShareIcon = ({ className }: IconProps) => (
+  <svg className={className} {...strokeProps}>
+    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+    <polyline points="16 6 12 2 8 6" />
+    <line x1="12" y1="2" x2="12" y2="15" />
+  </svg>
+);
+const DownloadIcon = ({ className }: IconProps) => (
+  <svg className={className} {...strokeProps}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+const SettingsIcon = ({ className }: IconProps) => (
+  <svg className={className} {...strokeProps}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+const UndoIcon = ({ className }: IconProps) => (
+  <svg className={className} {...strokeProps}>
+    <path d="M9 14 4 9l5-5" />
+    <path d="M4 9h11a5 5 0 0 1 0 10h-1" />
+  </svg>
+);
+const TradesIcon = ({ className }: IconProps) => (
+  <svg className={className} {...strokeProps}>
+    <polyline points="17 1 21 5 17 9" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <polyline points="7 23 3 19 7 15" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+  </svg>
+);
+const PauseIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <rect x="6" y="5" width="4" height="14" rx="1" />
+    <rect x="14" y="5" width="4" height="14" rx="1" />
+  </svg>
+);
+const PlayIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M8 5v14l11-7z" />
+  </svg>
+);
+const SkipIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 5l8 7-8 7V5z" />
+    <path d="M13 5l8 7-8 7V5z" />
+  </svg>
+);
+
+// Shared button treatments from the design's `.cbtn` / `.ibtn` / `.trades`.
+const CBTN =
+  "inline-flex items-center gap-1.5 rounded-[9px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-3 py-2 text-sm font-medium text-[var(--bb-text)] transition-colors hover:border-[var(--bb-stroke-2)] hover:bg-[var(--bb-card-2)]";
+const IBTN =
+  "flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] text-[var(--bb-muted)] transition-colors hover:border-[var(--bb-stroke-2)] hover:bg-[var(--bb-card-2)] hover:text-[var(--bb-text)] disabled:pointer-events-none disabled:opacity-40";
+
+// Small position tag used in the recent-picks ticker. Colors intentionally match
+// the board's own position palette (see POSITION_STYLES) so a position reads the
+// same hue in the ticker and on the grid.
+const TICKER_POS_TEXT: Record<string, string> = {
+  QB: "text-emerald-300",
+  RB: "text-blue-300",
+  WR: "text-yellow-300",
+  TE: "text-orange-300",
+  DST: "text-red-300",
+  DEF: "text-red-300",
+  IDP: "text-red-300",
+  DL: "text-red-300",
+  LB: "text-red-300",
+  DB: "text-red-300",
+};
+function tickerPosText(pos: string | null | undefined): string {
+  return (pos && TICKER_POS_TEXT[pos.toUpperCase()]) || "text-[var(--bb-muted)]";
+}
+
+// Upcoming clock picks after the current one, in the order the clock reaches
+// them: forward frontier first, then deferred (skipped) picks ascending. Used to
+// render the on-deck chips. `order[0]` is the pick on the clock, so the on-deck
+// list is the next `count` entries.
+function upcomingPicks(
+  currentPick: number,
+  skipped: number[],
+  total: number,
+  count: number,
+): number[] {
+  const order: number[] = [];
+  for (let p = Math.max(currentPick, 1); p <= total; p++) order.push(p);
+  for (const s of [...skipped].sort((a, b) => a - b)) {
+    if (s < currentPick) order.push(s);
+  }
+  return order.slice(1, 1 + count);
+}
 
 // Per-position color coding for drafted cells: a cell-background tint and a
 // matching name color (with a `light:` shade so it stays legible in light mode).
@@ -68,7 +172,7 @@ function MoreMenu({ onReset }: { onReset: () => void }) {
         aria-expanded={open}
         aria-label="More draft actions"
         title="More draft actions"
-        className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+        className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] text-xl leading-none text-[var(--bb-muted)] transition-colors hover:border-[var(--bb-stroke-2)] hover:text-[var(--bb-text)]"
       >
         ⋯
       </button>
@@ -120,9 +224,10 @@ function DownloadMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         title="Download board"
-        className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
+        className={CBTN}
       >
-        ↓ Download
+        <DownloadIcon className="h-[15px] w-[15px] opacity-80" />
+        Download
       </button>
       {open && (
         <>
@@ -343,17 +448,6 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   // Pick within the current round (1..numSlots), distinct from the overall pick number.
   const pickInRound =
     onClock && clockNum != null ? ((clockNum - 1) % draft.numSlots) + 1 : null;
-  // "Next" — current owner of the pick that lands on the clock after this one.
-  const nextNum = inProgress
-    ? nextClockPick(draft.currentPick, state.skipped, total)
-    : null;
-  const nextSlot =
-    nextNum != null
-      ? effectiveOwnerSlot(nextNum, draft.numSlots, ownerMap)
-      : null;
-  const nextMember = nextSlot
-    ? members.find((m) => m.slot === nextSlot)
-    : null;
 
   // The pick a search selection fills: a returned-to skipped pick if one is
   // targeted (and still open), otherwise the pick on the clock.
@@ -375,6 +469,34 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   // Count of trade transactions (not individual picks exchanged).
   const tradeCount = new Set(state.trades.map((t) => t.transactionId)).size;
 
+  // On-deck chips: the next few teams to pick after the one on the clock, each
+  // resolved to its current owner (after trades).
+  const onDeck = inProgress
+    ? upcomingPicks(draft.currentPick, state.skipped, total, 3).map((pn) => {
+        const slot = effectiveOwnerSlot(pn, draft.numSlots, ownerMap);
+        const m = members.find((mm) => mm.slot === slot);
+        return { pick: pn, name: m ? m.name : `Slot ${slot}` };
+      })
+    : [];
+
+  // Recent-picks ticker feed: most recent picks first, resolved to the drafting
+  // team (current owner of that pick). Only animates once there are enough to
+  // fill the strip; below that it renders static so it doesn't crawl awkwardly.
+  const recentPicks = [...state.picks]
+    .sort((a, b) => b.pickNumber - a.pickNumber)
+    .slice(0, 12)
+    .map((p) => {
+      const slot = effectiveOwnerSlot(p.pickNumber, draft.numSlots, ownerMap);
+      const m = members.find((mm) => mm.slot === slot);
+      return {
+        overall: p.pickNumber,
+        team: m ? m.name : `Slot ${slot}`,
+        player: p.playerName,
+        pos: p.playerPosition,
+      };
+    });
+  const tickerScrolls = recentPicks.length >= 5;
+
   // Trade entry point — sits beside the ⋯ menu, above the board.
   const tradesButton = (
     <button
@@ -382,11 +504,12 @@ export function DraftBoard({ draftId }: { draftId: string }) {
       onClick={() => setShowTrades(true)}
       aria-label="Trade picks"
       title="Trade picks"
-      className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-700 px-3 text-sm leading-none text-slate-300 hover:bg-slate-800 hover:text-slate-200"
+      className="inline-flex h-11 items-center gap-2 rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-3.5 text-sm font-medium leading-none text-[var(--bb-text)] transition-colors hover:border-[var(--bb-stroke-2)] hover:bg-[var(--bb-card-2)]"
     >
-      ⇄ Trades
+      <TradesIcon className="h-4 w-4 opacity-85" />
+      Trades
       {tradeCount > 0 && (
-        <span className="rounded bg-slate-700 px-1.5 py-0.5 text-xs text-slate-200">
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-[var(--bb-pk)] px-1.5 text-xs font-semibold text-[var(--bb-muted)]">
           {tradeCount}
         </span>
       )}
@@ -395,34 +518,35 @@ export function DraftBoard({ draftId }: { draftId: string }) {
 
   return (
     <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
-      {/* Header (pr clears the fixed theme toggle in the top-right corner) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pr-12">
+      {/* Top chrome (pr clears the fixed theme toggle in the top-right corner) */}
+      <div className="flex flex-wrap items-start justify-between gap-4 px-1.5 pb-5 pr-12">
         <div>
-          <Link href="/" className="text-xs text-slate-500 hover:text-slate-300">
+          <Link
+            href="/"
+            className="text-[13px] tracking-[0.02em] text-[var(--bb-muted-2)] hover:text-[var(--bb-muted)]"
+          >
             Big Board
           </Link>
-          <h1 className="text-xl font-bold sm:text-2xl">{draft.name}</h1>
+          <h1 className="mt-0.5 text-3xl font-bold tracking-[-0.01em] text-[var(--bb-text)]">
+            {draft.name}
+          </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={copyLink}
-            className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
-          >
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button onClick={copyLink} className={CBTN}>
+            <ShareIcon className="h-[15px] w-[15px] opacity-80" />
             {copied ? "Copied!" : "Share link"}
           </button>
           <DownloadMenu onDownload={downloadBoard} />
           {canEdit && (
-            <button
-              onClick={() => setShowSettings(true)}
-              className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
-            >
-              ⚙ Settings
+            <button onClick={() => setShowSettings(true)} className={CBTN}>
+              <SettingsIcon className="h-[15px] w-[15px] opacity-80" />
+              Settings
             </button>
           )}
           {!canEdit && (
             <button
               onClick={() => setShowUnlock((s) => !s)}
-              className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-emerald-950 hover:bg-emerald-400"
+              className="inline-flex items-center rounded-[9px] bg-[var(--bb-accent)] px-3.5 py-2 text-sm font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)]"
             >
               Unlock to edit
             </button>
@@ -432,16 +556,16 @@ export function DraftBoard({ draftId }: { draftId: string }) {
 
       {/* Unlock form */}
       {!canEdit && showUnlock && (
-        <form onSubmit={unlock} className="mt-3 flex gap-2">
+        <form onSubmit={unlock} className="mb-3 flex gap-2">
           <input
             type="password"
             autoFocus
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Draft password"
-            className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500 sm:max-w-xs"
+            className="min-w-0 flex-1 rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-3.5 py-2.5 text-sm text-[var(--bb-text)] outline-none transition-colors focus:border-[var(--bb-accent-dim)] sm:max-w-xs"
           />
-          <button className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-400">
+          <button className="rounded-[11px] bg-[var(--bb-accent)] px-4 py-2.5 text-sm font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)]">
             Unlock
           </button>
         </form>
@@ -449,103 +573,179 @@ export function DraftBoard({ draftId }: { draftId: string }) {
 
       {/* Status banner */}
       {pending || complete ? (
-        <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 light:bg-slate-900">
+        <div className="rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-5 py-4">
           {pending ? (
-            <span className="text-sm text-slate-300">
+            <span className="text-sm text-[var(--bb-muted)]">
               {canEdit
                 ? "Draft hasn't started — press Start when everyone's ready."
                 : "Waiting for the commissioner to start the draft."}
             </span>
           ) : (
-            <span className="font-semibold text-emerald-400">Draft complete 🎉</span>
+            <span className="font-semibold text-[var(--bb-accent)]">
+              Draft complete 🎉
+            </span>
           )}
         </div>
       ) : (
-        /* Scoreboard: team on the clock · big timer · round/pick */
-        <div className="mt-3 grid grid-cols-1 items-center gap-5 rounded-xl border border-slate-800 bg-slate-900/60 px-5 py-5 light:bg-slate-900 sm:grid-cols-[1fr_auto_1fr]">
-          {/* Left — current team, with the on-deck team beneath it */}
-          <div className="text-center sm:text-left">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              On the clock
+        /* Scoreboard: team on the clock · big timer · round/pick, with a live
+           recent-picks ticker along the bottom. */
+        <div className="overflow-hidden rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)] text-[var(--bb-text)]">
+          <div className="grid grid-cols-1 items-center gap-6 px-6 py-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-7 sm:px-8">
+            {/* Left — team on the clock, with the on-deck strip beneath it */}
+            <div className="text-center sm:text-left">
+              <div className="text-xs font-semibold uppercase tracking-[0.13em] text-[var(--bb-muted-2)]">
+                On the clock
+              </div>
+              <div className="mt-1 text-4xl font-bold leading-[1.02] tracking-[-0.02em] sm:text-[52px]">
+                {onClockMember ? onClockMember.name : `Slot ${onClockSlot}`}
+              </div>
+              {onDeck.length > 0 && (
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5 sm:justify-start">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--bb-muted-2)]">
+                    On deck
+                  </span>
+                  {onDeck.map((od, i) => (
+                    <div key={od.pick} className="flex items-center gap-2.5">
+                      <span
+                        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border py-1 pl-1.5 pr-2.5 text-[13px] font-medium ${
+                          i === 0
+                            ? "border-[var(--bb-stroke-2)] bg-[var(--bb-card-2)] text-[var(--bb-text)]"
+                            : "border-[var(--bb-stroke)] bg-[var(--bb-card-2)] text-[var(--bb-muted)]"
+                        }`}
+                      >
+                        <span
+                          className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+                            i === 0
+                              ? "bg-[rgba(63,224,129,0.14)] text-[var(--bb-accent)]"
+                              : "bg-[var(--bb-pk)] text-[var(--bb-muted)]"
+                          }`}
+                        >
+                          {od.pick}
+                        </span>
+                        {od.name}
+                      </span>
+                      {i === 0 && onDeck.length > 1 && (
+                        <span className="text-xs text-[var(--bb-muted-2)]">→</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="mt-0.5 text-3xl font-bold leading-none sm:text-4xl">
-              {onClockMember ? onClockMember.name : `Slot ${onClockSlot}`}
+
+            {/* Center — prominent countdown (color/blink handled by PickTimer) */}
+            <div className="text-center">
+              <div className="text-7xl font-bold leading-none tracking-[-0.02em] tabular-nums sm:text-[96px]">
+                <PickTimer
+                  startedAt={draft.currentPickStartedAt}
+                  seconds={draft.pickSeconds}
+                  pausedAt={draft.pausedAt}
+                  key={clockNum ?? draft.currentPick}
+                />
+              </div>
+              <div className="mt-1.5 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--bb-muted-2)]">
+                {paused && (
+                  <span className="rounded bg-[rgba(240,161,58,0.14)] px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-[var(--bb-amber)]">
+                    ⏸ Paused
+                  </span>
+                )}
+                <span>{draft.pickSeconds == null ? "Elapsed" : "Remaining"}</span>
+              </div>
             </div>
-            {nextSlot && (
-              <div className="mt-3 text-sm text-slate-400">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                  Next
-                </span>{" "}
-                <span className="font-semibold text-slate-300">
-                  {nextMember ? nextMember.name : `Slot ${nextSlot}`}
+
+            {/* Right — round · pick, plus the overall pick number */}
+            <div className="text-center sm:text-right">
+              <div className="text-xs font-semibold uppercase tracking-[0.13em] text-[var(--bb-muted-2)]">
+                Round · Pick
+              </div>
+              <div className="mt-1 text-4xl font-bold leading-[1.02] tracking-[-0.01em] tabular-nums sm:text-[52px]">
+                {onClock!.round}
+                <span className="mx-1 text-[var(--bb-muted-2)]">·</span>
+                {pickInRound}
+              </div>
+              <div className="mt-3 text-sm text-[var(--bb-muted)]">
+                {onFrontier ? "Overall pick" : "Returning to pick"}{" "}
+                <span className="font-semibold text-[var(--bb-text)]">
+                  #{clockNum}
                 </span>
               </div>
-            )}
-          </div>
-
-          {/* Center — prominent monospace countdown */}
-          <div className="text-center">
-            <div className="font-mono text-6xl font-semibold leading-none tabular-nums sm:text-7xl">
-              <PickTimer
-                startedAt={draft.currentPickStartedAt}
-                seconds={draft.pickSeconds}
-                pausedAt={draft.pausedAt}
-                key={clockNum ?? draft.currentPick}
-              />
-            </div>
-            <div className="mt-2 flex items-center justify-center gap-2 text-[11px] uppercase tracking-widest text-slate-500">
-              {paused && (
-                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-amber-300">
-                  ⏸ Paused
-                </span>
-              )}
-              <span>{draft.pickSeconds == null ? "elapsed" : "time remaining"}</span>
             </div>
           </div>
 
-          {/* Right — round · pick, plus the overall pick number */}
-          <div className="text-center sm:text-right">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Round · Pick
+          {/* Recent-picks ticker */}
+          {recentPicks.length > 0 && (
+            <div className="bb-ticker flex items-stretch border-t border-[var(--bb-stroke)]">
+              <div className="inline-flex flex-shrink-0 items-center gap-2.5 border-r border-[var(--bb-stroke)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--bb-muted)]">
+                <span className="bb-live-dot" />
+                Recent picks
+              </div>
+              <div className="bb-ticker-view flex-1">
+                <div
+                  className={
+                    tickerScrolls ? "bb-marquee" : "flex items-center"
+                  }
+                >
+                  {(tickerScrolls
+                    ? [...recentPicks, ...recentPicks]
+                    : recentPicks
+                  ).map((p, i) => (
+                    <div
+                      key={`${p.overall}-${i}`}
+                      className="inline-flex items-center gap-2.5 whitespace-nowrap border-r border-[var(--bb-stroke)] px-5 py-3 text-sm"
+                    >
+                      <span className="font-semibold tabular-nums text-[var(--bb-muted-2)]">
+                        #{p.overall}
+                      </span>
+                      <span className="text-xs text-[var(--bb-muted)]">
+                        {p.team}
+                      </span>
+                      <span className="font-medium text-[var(--bb-text)]">
+                        {p.player}
+                      </span>
+                      {p.pos && (
+                        <span
+                          className={`rounded-[5px] bg-[#141c2a] px-1.5 py-0.5 text-[10px] font-bold tracking-[0.04em] ${tickerPosText(
+                            p.pos,
+                          )}`}
+                        >
+                          {p.pos.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="mt-0.5 text-3xl font-bold leading-none sm:text-4xl">
-              {onClock!.round}
-              <span className="px-1 text-slate-500">·</span>
-              {pickInRound}
-            </div>
-            <div className="mt-3 text-sm text-slate-400">
-              {onFrontier ? "Overall pick" : "Returning to pick"}{" "}
-              <span className="font-semibold text-slate-300">#{clockNum}</span>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* Controls (only when unlocked) — option C: inline dock + guarded reset */}
+      {/* Controls (only when unlocked) — inline dock + centered search + guarded reset */}
       {canEdit &&
         (pending ? (
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-5 flex items-center gap-2.5">
             <button
               onClick={() => post("start")}
-              className="flex-1 rounded-xl bg-emerald-500 px-6 py-3 text-center font-semibold text-emerald-950 transition hover:bg-emerald-400"
+              className="flex flex-1 items-center justify-center gap-2 rounded-[11px] bg-[var(--bb-accent)] px-6 py-3 text-center font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)]"
             >
-              ▶ Start draft
+              <PlayIcon className="h-4 w-4" />
+              Start draft
             </button>
             {tradesButton}
             <MoreMenu onReset={() => setShowReset(true)} />
           </div>
         ) : (
-          <div className="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-3">
-            {/* Dock — Pause/Resume + Undo as icon buttons, left of the search */}
-            <div className="flex gap-2 rounded-xl border border-slate-700 p-1.5">
+          <div className="mt-5 grid grid-cols-[auto_1fr_auto] items-center gap-3">
+            {/* Dock — Pause/Resume + Undo + Skip as icon buttons, left of the search */}
+            <div className="flex gap-2">
               {paused ? (
                 <button
                   onClick={() => post("resume")}
                   aria-label="Resume draft"
                   title="Resume draft"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500 text-lg leading-none text-emerald-950 hover:bg-emerald-400"
+                  className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-accent-dim)] bg-[rgba(63,224,129,0.1)] text-[var(--bb-accent)] transition-colors hover:bg-[rgba(63,224,129,0.16)]"
                 >
-                  ▶
+                  <PlayIcon className="h-[18px] w-[18px]" />
                 </button>
               ) : (
                 <button
@@ -553,9 +753,9 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                   disabled={!active}
                   aria-label="Pause draft"
                   title="Pause draft"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-amber-700/60 text-lg leading-none text-amber-300 hover:bg-amber-500/10 disabled:opacity-40"
+                  className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[rgba(240,161,58,0.4)] bg-[rgba(240,161,58,0.08)] text-[var(--bb-amber)] transition-colors hover:bg-[rgba(240,161,58,0.14)] disabled:pointer-events-none disabled:opacity-40"
                 >
-                  ⏸
+                  <PauseIcon className="h-[18px] w-[18px]" />
                 </button>
               )}
               <button
@@ -563,9 +763,9 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                 disabled={paused}
                 aria-label="Undo last pick"
                 title="Undo last pick"
-                className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 text-lg leading-none text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+                className={IBTN}
               >
-                ↩
+                <UndoIcon className="h-[18px] w-[18px]" />
               </button>
               <button
                 onClick={() => post("skip")}
@@ -576,14 +776,14 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                     ? "Skip this pick (return to it later)"
                     : "This pick was skipped — fill it from the board"
                 }
-                className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 text-lg leading-none text-slate-300 hover:bg-slate-800 disabled:opacity-40"
+                className={IBTN}
               >
-                ⏭
+                <SkipIcon className="h-[18px] w-[18px]" />
               </button>
             </div>
 
             {/* Centered search */}
-            <div className="mx-auto w-full max-w-lg">
+            <div className="mx-auto w-full max-w-[480px]">
               <PlayerSearch
                 draftId={draftId}
                 onPick={makePick}
@@ -600,9 +800,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         ))}
 
       {/* Viewers can still open the trade history/board (read-only). */}
-      {!canEdit && (
-        <div className="mt-3 flex justify-end">{tradesButton}</div>
-      )}
+      {!canEdit && <div className="mt-5 flex justify-end">{tradesButton}</div>}
 
       {/* Returning to a skipped pick — the search now fills this one. */}
       {canEdit && fillTarget != null && skippedSet.has(fillTarget) && (

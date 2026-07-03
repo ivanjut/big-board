@@ -75,6 +75,19 @@ export function PlayerSearch({
 
   return (
     <div ref={wrapRef} className="relative">
+      <svg
+        aria-hidden
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="pointer-events-none absolute left-4 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[var(--bb-muted-2)]"
+      >
+        <circle cx="11" cy="11" r="7" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
       <input
         value={q}
         disabled={disabled}
@@ -82,22 +95,24 @@ export function PlayerSearch({
         onKeyDown={onKeyDown}
         onFocus={() => results.length && setOpen(true)}
         placeholder={disabled ? "Draft complete" : "Search a player to draft…"}
-        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-base outline-none focus:border-emerald-500 disabled:opacity-50"
+        className="w-full rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] py-3 pl-11 pr-4 text-[15px] text-[var(--bb-text)] outline-none transition-colors placeholder:text-[var(--bb-muted-2)] focus:border-[var(--bb-accent-dim)] disabled:opacity-50"
       />
       {open && results.length > 0 && (
-        <ul className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-slate-700 bg-slate-900 shadow-xl">
+        <ul className="absolute z-20 mt-1.5 max-h-72 w-full overflow-auto rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] shadow-xl">
           {results.map((p, i) => (
             <li key={p.id}>
               <button
                 type="button"
                 onMouseEnter={() => setActive(i)}
                 onClick={() => choose(p)}
-                className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm ${
-                  i === active ? "bg-emerald-500/15" : "hover:bg-slate-800"
+                className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-[var(--bb-text)] ${
+                  i === active
+                    ? "bg-[rgba(63,224,129,0.12)]"
+                    : "hover:bg-[var(--bb-card-2)]"
                 }`}
               >
                 <span className="font-medium">{p.name}</span>
-                <span className="ml-3 shrink-0 text-xs text-slate-400">
+                <span className="ml-3 shrink-0 text-xs text-[var(--bb-muted)]">
                   {p.position}
                   {p.team ? ` · ${p.team}` : ""}
                 </span>
