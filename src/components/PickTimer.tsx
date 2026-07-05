@@ -2,10 +2,24 @@
 
 import { useEffect, useState } from "react";
 
-const fmt = (s: number) => {
-  const m = Math.floor(s / 60);
-  return `${m}:${String(s % 60).padStart(2, "0")}`;
-};
+// Split into minutes / seconds so the colon can blink independently, matching
+// the scoreboard design.
+const parts = (s: number) => ({
+  m: Math.floor(s / 60),
+  ss: String(s % 60).padStart(2, "0"),
+});
+
+// A "m:ss" clock with the separator blinking (design's `.colon`).
+function Clock({ seconds, className }: { seconds: number; className: string }) {
+  const { m, ss } = parts(seconds);
+  return (
+    <span className={`tabular-nums font-bold ${className}`}>
+      {m}
+      <span className="bb-colon">:</span>
+      {ss}
+    </span>
+  );
+}
 
 // Clock for the current pick, anchored to the server-provided `startedAt` so all
 // viewers see the same time. With a limit it counts down, then keeps counting as
@@ -36,27 +50,32 @@ export function PickTimer({
 
   // No limit: show elapsed time on the clock.
   if (seconds == null) {
-    return <span className="tabular-nums font-semibold text-emerald-400">{fmt(elapsed)}</span>;
+    return <Clock seconds={elapsed} className="text-[var(--bb-accent)]" />;
   }
 
   const remaining = seconds - elapsed;
 
   // Over the limit: keep counting, show how far over.
   if (remaining <= 0) {
+    const { m, ss } = parts(-remaining);
     return (
-      <span className="tabular-nums font-semibold text-red-400">
-        +{fmt(-remaining)} over
+      <span className="tabular-nums font-bold text-[var(--bb-danger)]">
+        +{m}
+        <span className="bb-colon">:</span>
+        {ss}
+        <span className="ml-3 align-middle text-2xl font-semibold uppercase tracking-[0.12em]">
+          over
+        </span>
       </span>
     );
   }
 
   return (
-    <span
-      className={`tabular-nums font-semibold ${
-        remaining <= 10 ? "text-amber-300" : "text-emerald-400"
-      }`}
-    >
-      {fmt(remaining)}
-    </span>
+    <Clock
+      seconds={remaining}
+      className={
+        remaining <= 10 ? "text-[var(--bb-amber)]" : "text-[var(--bb-accent)]"
+      }
+    />
   );
 }
