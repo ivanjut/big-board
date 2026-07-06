@@ -429,7 +429,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     // is coming", not "nothing here". Mirrors the top chrome + scoreboard layout.
     return (
       <main
-        className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5"
+        className="mx-auto max-w-[1800px] px-3 py-4 sm:px-6"
         aria-busy="true"
         aria-label="Loading draft"
       >
@@ -530,12 +530,14 @@ export function DraftBoard({ draftId }: { draftId: string }) {
       })
     : [];
 
-  // Recent-picks ticker feed: most recent picks first, resolved to the drafting
-  // team (current owner of that pick). Only animates once there are enough to
-  // fill the strip; below that it renders static so it doesn't crawl awkwardly.
+  // Recent-picks ticker feed: the 12 most recent picks, ordered the way they were
+  // made so they read left-to-right (oldest of the batch first, newest last),
+  // resolved to the drafting team (current owner of that pick). Only animates once
+  // there are enough to fill the strip; below that it renders static so it doesn't
+  // crawl awkwardly.
   const recentPicks = [...state.picks]
-    .sort((a, b) => b.pickNumber - a.pickNumber)
-    .slice(0, 12)
+    .sort((a, b) => a.pickNumber - b.pickNumber)
+    .slice(-12)
     .map((p) => {
       const slot = effectiveOwnerSlot(p.pickNumber, draft.numSlots, ownerMap);
       const m = members.find((mm) => mm.slot === slot);
@@ -568,7 +570,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   );
 
   return (
-    <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
+    <main className="mx-auto max-w-[1800px] px-3 py-4 sm:px-6">
       {/* Top chrome (pr clears the fixed theme toggle in the top-right corner) */}
       <div className="flex flex-wrap items-start justify-between gap-4 px-1.5 pb-5 pr-12">
         <div>
