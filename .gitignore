@@ -41,8 +41,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# claude code local settings (per-user)
-.claude/settings.local.json
+# claude code (per-user, local)
+.claude/
 
 # impeccable design skill (local hook cache)
 .impeccable/hook.cache.json
