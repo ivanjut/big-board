@@ -81,7 +81,7 @@ const SkipIcon = ({ className }: IconProps) => (
 
 // Shared button treatments from the design's `.cbtn` / `.ibtn` / `.trades`.
 const CBTN =
-  "inline-flex items-center gap-1.5 rounded-[9px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-3 py-2 text-sm font-medium text-[var(--bb-text)] transition-colors hover:border-[var(--bb-stroke-2)] hover:bg-[var(--bb-card-2)]";
+  "inline-flex min-h-11 items-center gap-1.5 rounded-[9px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-3 py-2 text-sm font-medium text-[var(--bb-text)] transition-colors hover:border-[var(--bb-stroke-2)] hover:bg-[var(--bb-card-2)]";
 const IBTN =
   "flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] text-[var(--bb-muted)] transition-colors hover:border-[var(--bb-stroke-2)] hover:bg-[var(--bb-card-2)] hover:text-[var(--bb-text)] disabled:pointer-events-none disabled:opacity-40";
 
@@ -89,16 +89,16 @@ const IBTN =
 // the board's own position palette (see POSITION_STYLES) so a position reads the
 // same hue in the ticker and on the grid.
 const TICKER_POS_TEXT: Record<string, string> = {
-  QB: "text-emerald-300",
-  RB: "text-blue-300",
-  WR: "text-yellow-300",
-  TE: "text-orange-300",
-  DST: "text-red-300",
-  DEF: "text-red-300",
-  IDP: "text-red-300",
-  DL: "text-red-300",
-  LB: "text-red-300",
-  DB: "text-red-300",
+  QB: "text-emerald-300 light:text-emerald-700",
+  RB: "text-blue-300 light:text-blue-700",
+  WR: "text-yellow-300 light:text-yellow-700",
+  TE: "text-orange-300 light:text-orange-700",
+  DST: "text-red-300 light:text-red-700",
+  DEF: "text-red-300 light:text-red-700",
+  IDP: "text-red-300 light:text-red-700",
+  DL: "text-red-300 light:text-red-700",
+  LB: "text-red-300 light:text-red-700",
+  DB: "text-red-300 light:text-red-700",
 };
 function tickerPosText(pos: string | null | undefined): string {
   return (pos && TICKER_POS_TEXT[pos.toUpperCase()]) || "text-[var(--bb-muted)]";
@@ -290,6 +290,12 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showTrades, setShowTrades] = useState(false);
   const [copied, setCopied] = useState(false);
+  // In-flight flag for any commissioner action (pick, undo, skip, pause…) — used
+  // to disable the controls so a fast double-tap can't fire the same action twice.
+  const [busy, setBusy] = useState(false);
+  // Narrower flag: true only while a pick is being submitted, so the search shows
+  // its "Drafting…" pending state (and refocuses when it clears).
+  const [picking, setPicking] = useState(false);
   // When set, the next pick fills this specific (skipped) pick out of order
   // instead of the one on the clock.
   const [fillTarget, setFillTarget] = useState<number | null>(null);
@@ -328,18 +334,23 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   const post = useCallback(
     async (path: string, body?: unknown) => {
       setActionError(null);
-      const res = await fetch(`/api/draft/${draftId}/${path}`, {
-        method: "POST",
-        headers: body ? { "Content-Type": "application/json" } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setActionError(data.error ?? "Something went wrong.");
-        return false;
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/draft/${draftId}/${path}`, {
+          method: "POST",
+          headers: body ? { "Content-Type": "application/json" } : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setActionError(data.error ?? "Something went wrong.");
+          return false;
+        }
+        await refetch();
+        return true;
+      } finally {
+        setBusy(false);
       }
-      await refetch();
-      return true;
     },
     [draftId, refetch],
   );
@@ -406,7 +417,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     return (
       <main className="mx-auto max-w-md px-5 py-20 text-center">
         <p className="text-lg text-slate-300">{loadError}</p>
-        <Link href="/" className="mt-4 inline-block text-emerald-400">
+        <Link href="/" className="mt-4 inline-block text-[var(--bb-accent-text)]">
           ← Home
         </Link>
       </main>
@@ -414,8 +425,43 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   }
 
   if (!state) {
+    // Skeleton shaped like the real scoreboard so first paint reads as "the board
+    // is coming", not "nothing here". Mirrors the top chrome + scoreboard layout.
     return (
-      <main className="px-5 py-20 text-center text-slate-400">Loading…</main>
+      <main
+        className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5"
+        aria-busy="true"
+        aria-label="Loading draft"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4 px-1.5 pb-5 pr-12">
+          <div className="space-y-2">
+            <div className="bb-skel h-3.5 w-20" />
+            <div className="bb-skel h-8 w-56" />
+          </div>
+          <div className="flex gap-2.5">
+            <div className="bb-skel h-9 w-28 rounded-[9px]" />
+            <div className="bb-skel h-9 w-28 rounded-[9px]" />
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)]">
+          <div className="grid grid-cols-1 items-center gap-6 px-6 py-8 sm:grid-cols-[1fr_auto_1fr] sm:gap-7 sm:px-8">
+            <div className="space-y-3 text-center sm:text-left">
+              <div className="bb-skel mx-auto h-3 w-24 sm:mx-0" />
+              <div className="bb-skel mx-auto h-12 w-52 sm:mx-0" />
+            </div>
+            <div className="bb-skel mx-auto h-20 w-48 rounded-xl" />
+            <div className="space-y-3 text-center sm:text-right">
+              <div className="bb-skel mx-auto h-3 w-24 sm:ml-auto sm:mr-0" />
+              <div className="bb-skel mx-auto h-12 w-32 sm:ml-auto sm:mr-0" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 border-t border-[var(--bb-stroke)] px-4 py-3">
+            <div className="bb-skel h-2.5 w-24" />
+            <div className="bb-skel h-2.5 flex-1" />
+          </div>
+        </div>
+        <span className="sr-only">Loading draft…</span>
+      </main>
     );
   }
 
@@ -455,8 +501,13 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     fillTarget != null && skippedSet.has(fillTarget) ? fillTarget : clockNum;
   const makePick = async (playerId: number) => {
     if (activeFill == null) return;
-    if (await post("pick", { playerId, pickNumber: activeFill }))
-      setFillTarget(null);
+    setPicking(true);
+    try {
+      if (await post("pick", { playerId, pickNumber: activeFill }))
+        setFillTarget(null);
+    } finally {
+      setPicking(false);
+    }
   };
   const fillTargetMember =
     fillTarget != null && skippedSet.has(fillTarget)
@@ -563,7 +614,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Draft password"
-            className="min-w-0 flex-1 rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-3.5 py-2.5 text-sm text-[var(--bb-text)] outline-none transition-colors focus:border-[var(--bb-accent-dim)] sm:max-w-xs"
+            className="min-w-0 flex-1 rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-3.5 py-2.5 text-sm text-[var(--bb-text)] transition-colors focus:border-[var(--bb-accent-dim)] sm:max-w-xs"
           />
           <button className="rounded-[11px] bg-[var(--bb-accent)] px-4 py-2.5 text-sm font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)]">
             Unlock
@@ -581,7 +632,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                 : "Waiting for the commissioner to start the draft."}
             </span>
           ) : (
-            <span className="font-semibold text-[var(--bb-accent)]">
+            <span className="font-semibold text-[var(--bb-accent-text)]">
               Draft complete 🎉
             </span>
           )}
@@ -592,11 +643,11 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         <div className="overflow-hidden rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)] text-[var(--bb-text)]">
           <div className="grid grid-cols-1 items-center gap-6 px-6 py-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-7 sm:px-8">
             {/* Left — team on the clock, with the on-deck strip beneath it */}
-            <div className="text-center sm:text-left">
+            <div className="min-w-0 text-center sm:text-left">
               <div className="text-xs font-semibold uppercase tracking-[0.13em] text-[var(--bb-muted-2)]">
                 On the clock
               </div>
-              <div className="mt-1 text-4xl font-bold leading-[1.02] tracking-[-0.02em] sm:text-[52px]">
+              <div className="mt-1 line-clamp-2 text-4xl font-bold leading-[1.02] tracking-[-0.02em] [overflow-wrap:anywhere] sm:text-[52px]">
                 {onClockMember ? onClockMember.name : `Slot ${onClockSlot}`}
               </div>
               {onDeck.length > 0 && (
@@ -616,7 +667,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                         <span
                           className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
                             i === 0
-                              ? "bg-[rgba(63,224,129,0.14)] text-[var(--bb-accent)]"
+                              ? "bg-[rgba(63,224,129,0.14)] text-[var(--bb-accent-text)]"
                               : "bg-[var(--bb-pk)] text-[var(--bb-muted)]"
                           }`}
                         >
@@ -704,7 +755,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                       </span>
                       {p.pos && (
                         <span
-                          className={`rounded-[5px] bg-[#141c2a] px-1.5 py-0.5 text-[10px] font-bold tracking-[0.04em] ${tickerPosText(
+                          className={`rounded-[5px] bg-[var(--bb-pk)] px-1.5 py-0.5 text-[10px] font-bold tracking-[0.04em] ${tickerPosText(
                             p.pos,
                           )}`}
                         >
@@ -726,7 +777,8 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           <div className="mt-5 flex items-center gap-2.5">
             <button
               onClick={() => post("start")}
-              className="flex flex-1 items-center justify-center gap-2 rounded-[11px] bg-[var(--bb-accent)] px-6 py-3 text-center font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)]"
+              disabled={busy}
+              className="flex flex-1 items-center justify-center gap-2 rounded-[11px] bg-[var(--bb-accent)] px-6 py-3 text-center font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)] disabled:pointer-events-none disabled:opacity-60"
             >
               <PlayIcon className="h-4 w-4" />
               Start draft
@@ -735,66 +787,74 @@ export function DraftBoard({ draftId }: { draftId: string }) {
             <MoreMenu onReset={() => setShowReset(true)} />
           </div>
         ) : (
-          <div className="mt-5 grid grid-cols-[auto_1fr_auto] items-center gap-3">
-            {/* Dock — Pause/Resume + Undo + Skip as icon buttons, left of the search */}
-            <div className="flex gap-2">
-              {paused ? (
-                <button
-                  onClick={() => post("resume")}
-                  aria-label="Resume draft"
-                  title="Resume draft"
-                  className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-accent-dim)] bg-[rgba(63,224,129,0.1)] text-[var(--bb-accent)] transition-colors hover:bg-[rgba(63,224,129,0.16)]"
-                >
-                  <PlayIcon className="h-[18px] w-[18px]" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => post("pause")}
-                  disabled={!active}
-                  aria-label="Pause draft"
-                  title="Pause draft"
-                  className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[rgba(240,161,58,0.4)] bg-[rgba(240,161,58,0.08)] text-[var(--bb-amber)] transition-colors hover:bg-[rgba(240,161,58,0.14)] disabled:pointer-events-none disabled:opacity-40"
-                >
-                  <PauseIcon className="h-[18px] w-[18px]" />
-                </button>
-              )}
-              <button
-                onClick={() => post("undo")}
-                disabled={paused}
-                aria-label="Undo last pick"
-                title="Undo last pick"
-                className={IBTN}
-              >
-                <UndoIcon className="h-[18px] w-[18px]" />
-              </button>
-              <button
-                onClick={() => post("skip")}
-                disabled={!active || !onFrontier}
-                aria-label="Skip this pick"
-                title={
-                  onFrontier
-                    ? "Skip this pick (return to it later)"
-                    : "This pick was skipped — fill it from the board"
-                }
-                className={IBTN}
-              >
-                <SkipIcon className="h-[18px] w-[18px]" />
-              </button>
-            </div>
-
-            {/* Centered search */}
-            <div className="mx-auto w-full max-w-[480px]">
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+            {/* Search — full-width on top for phones, centered in the middle
+                column on desktop. Kept off the cramped 3-across mobile row. */}
+            <div className="order-first w-full sm:order-none sm:col-start-2 sm:row-start-1 sm:mx-auto sm:max-w-[480px]">
               <PlayerSearch
                 draftId={draftId}
                 onPick={makePick}
                 disabled={complete || paused}
+                pending={picking}
               />
             </div>
 
-            {/* Trades + guarded reset behind a ⋯ menu */}
-            <div className="flex items-center gap-2">
-              {tradesButton}
-              <MoreMenu onReset={() => setShowReset(true)} />
+            {/* Controls row — dock on the left, trades/reset on the right. On a
+                phone it's one row under the search; on desktop `sm:contents`
+                flattens it so the two clusters land in the outer grid columns. */}
+            <div className="flex items-center justify-between gap-2 sm:contents">
+              {/* Dock — Pause/Resume + Undo + Skip */}
+              <div className="flex gap-2 sm:col-start-1 sm:row-start-1">
+                {paused ? (
+                  <button
+                    onClick={() => post("resume")}
+                    disabled={busy}
+                    aria-label="Resume draft"
+                    title="Resume draft"
+                    className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-accent-dim)] bg-[rgba(63,224,129,0.1)] text-[var(--bb-accent-text)] transition-colors hover:bg-[rgba(63,224,129,0.16)] disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <PlayIcon className="h-[18px] w-[18px]" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => post("pause")}
+                    disabled={!active || busy}
+                    aria-label="Pause draft"
+                    title="Pause draft"
+                    className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[rgba(240,161,58,0.4)] bg-[rgba(240,161,58,0.08)] text-[var(--bb-amber)] transition-colors hover:bg-[rgba(240,161,58,0.14)] disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <PauseIcon className="h-[18px] w-[18px]" />
+                  </button>
+                )}
+                <button
+                  onClick={() => post("undo")}
+                  disabled={paused || busy}
+                  aria-label="Undo last pick"
+                  title="Undo last pick"
+                  className={IBTN}
+                >
+                  <UndoIcon className="h-[18px] w-[18px]" />
+                </button>
+                <button
+                  onClick={() => post("skip")}
+                  disabled={!active || !onFrontier || busy}
+                  aria-label="Skip this pick"
+                  title={
+                    onFrontier
+                      ? "Skip this pick (return to it later)"
+                      : "This pick was skipped — fill it from the board"
+                  }
+                  className={IBTN}
+                >
+                  <SkipIcon className="h-[18px] w-[18px]" />
+                </button>
+              </div>
+
+              {/* Trades + guarded reset behind a ⋯ menu */}
+              <div className="flex items-center gap-2 sm:col-start-3 sm:row-start-1">
+                {tradesButton}
+                <MoreMenu onReset={() => setShowReset(true)} />
+              </div>
             </div>
           </div>
         ))}
@@ -896,7 +956,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                         title={returnable ? "Click to fill this skipped pick" : undefined}
                         className={`relative h-14 border-l border-t border-slate-800 px-2 py-1 align-top ${
                           isOnClock
-                            ? "bg-emerald-500/15 ring-2 ring-inset ring-emerald-500"
+                            ? "bg-[rgba(63,224,129,0.15)] ring-2 ring-inset ring-[var(--bb-accent-text)]"
                             : pick
                               ? ps?.cell ?? "bg-slate-900/40 light:bg-slate-900"
                               : isFillTarget
@@ -940,7 +1000,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                             </span>
                           </span>
                         ) : isOnClock ? (
-                          <span className="block pt-2 text-[10px] font-semibold uppercase text-emerald-400">
+                          <span className="block pt-2 text-[10px] font-semibold uppercase text-[var(--bb-accent-text)]">
                             On the clock
                           </span>
                         ) : isSkipped ? (

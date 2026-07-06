@@ -50,7 +50,7 @@ export function PickTimer({
 
   // No limit: show elapsed time on the clock.
   if (seconds == null) {
-    return <Clock seconds={elapsed} className="text-[var(--bb-accent)]" />;
+    return <Clock seconds={elapsed} className="text-[var(--bb-accent-text)]" />;
   }
 
   const remaining = seconds - elapsed;
@@ -74,7 +74,7 @@ export function PickTimer({
     <Clock
       seconds={remaining}
       className={
-        remaining <= 10 ? "text-[var(--bb-amber)]" : "text-[var(--bb-accent)]"
+        remaining <= 10 ? "text-[var(--bb-amber)]" : "text-[var(--bb-accent-text)]"
       }
     />
   );

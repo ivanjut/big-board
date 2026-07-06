@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-05T00:00:00.000Z",
+  "title": "Design System: Big Board",
+  "extensions": {
+    "colorMeta": {
+      "scoreboard-green": {
+        "role": "primary",
+        "displayName": "Scoreboard Green",
+        "canonical": "oklch(82% 0.19 155)",
+        "tonalRamp": ["#04160d", "#073d24", "#0a5c37", "#0e8150", "#18a866", "#3fe081", "#7fecab", "#c7f8dd"]
+      },
+      "action-emerald": {
+        "role": "primary",
+        "displayName": "Action Emerald (legacy)",
+        "canonical": "oklch(69.6% 0.17 162.5)",
+        "tonalRamp": ["#022c22", "#064e3b", "#065f46", "#047857", "#059669", "#10b981", "#34d399", "#6ee7b7"]
+      },
+      "amber-signal": {
+        "role": "secondary",
+        "displayName": "Amber Signal",
+        "canonical": "oklch(76% 0.14 68)",
+        "tonalRamp": ["#2a1c07", "#4a2f0a", "#6e470f", "#9c6416", "#c8811f", "#f0a13a", "#f6bd74", "#fbdcab"]
+      },
+      "danger-red": {
+        "role": "secondary",
+        "displayName": "Danger Red",
+        "canonical": "oklch(68% 0.17 20)",
+        "tonalRamp": ["#2c0d0d", "#4d1614", "#71201d", "#9c2d29", "#c74038", "#f2726e", "#f79b98", "#fcc4c2"]
+      },
+      "scoreboard-surface": {
+        "role": "neutral",
+        "displayName": "Scoreboard Surface",
+        "canonical": "oklch(17% 0.02 260)",
+        "tonalRamp": ["#060a12", "#0c111b", "#12192a", "#1b2433", "#263041", "#3a475c", "#5f6a7d", "#8b95a8"]
+      },
+      "page-night": {
+        "role": "neutral",
+        "displayName": "Page Night (slate)",
+        "canonical": "oklch(12.9% 0.042 264.7)",
+        "tonalRamp": ["#020617", "#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The pick countdown only — the single loudest element on screen, visible across a room." },
+      "headline": { "displayName": "Headline", "purpose": "On-the-clock team name and the Round · Pick readout flanking the countdown." },
+      "title": { "displayName": "Title", "purpose": "The draft name (h1) in the top chrome." },
+      "body": { "displayName": "Body", "purpose": "Search, list rows, banners, dialog copy, and form fields." },
+      "label": { "displayName": "Label", "purpose": "Uppercase broadcast supers — On the clock, On deck, Round · Pick, Recent picks." }
+    },
+    "shadows": [
+      { "name": "floating-menu", "value": "0 20px 25px -5px rgba(0,0,0,0.25), 0 8px 10px -6px rgba(0,0,0,0.25)", "purpose": "The only shadow in the system — search dropdown, ⋯ overflow menu, Download menu. Reserved for layers that float over the board." },
+      { "name": "modal-scrim", "value": "background: rgba(0,0,0,0.6)", "purpose": "Dim (not blur) behind Reset/Settings/Trade dialogs." }
+    ],
+    "motion": [
+      { "name": "colon-blink", "value": "bb-blink 1.1s steps(1) infinite (50% { opacity: 0.28 })", "purpose": "The countdown separator blinks like a broadcast clock." },
+      { "name": "ticker-marquee", "value": "bb-marquee 32s linear infinite (translateX 0 → -50%)", "purpose": "Recent-picks marquee; only runs with ≥5 picks, pauses on hover, soft-fade edges." },
+      { "name": "live-pulse", "value": "bb-pulse 1.8s infinite (expanding box-shadow ring)", "purpose": "The pulsing 'live' dot beside Recent picks." },
+      { "name": "state-transition", "value": "transition-colors 150ms", "purpose": "Default easing for button/border/fill state changes — color only, never layout." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce) { animation: none }", "purpose": "Colon, marquee, and live dot all fall back to static. Non-optional." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "board-max", "value": "1400px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button (board accent)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The 'go' button — Start draft, Unlock. Electric green on the dark stage.",
+      "html": "<button class=\"ds-btn-primary\">Start draft</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; background: #3fe081; color: #04120a; font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 600; font-size: 14px; padding: 8px 14px; border: none; border-radius: 9px; transition: background 150ms; } .ds-btn-primary:hover { background: #2ba85f; } .ds-btn-primary:focus-visible { outline: 2px solid #3fe081; outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Chrome actions — Share link, Download, Settings. Surface fill with a stroke that brightens on hover.",
+      "html": "<button class=\"ds-btn-secondary\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" width=\"15\" height=\"15\" style=\"opacity:.8\"><path d=\"M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8\"/><polyline points=\"16 6 12 2 8 6\"/><line x1=\"12\" y1=\"2\" x2=\"12\" y2=\"15\"/></svg>Share link</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; background: #0c111b; color: #e8edf5; font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 500; font-size: 14px; padding: 8px 12px; border: 1px solid #1b2433; border-radius: 9px; transition: background 150ms, border-color 150ms; } .ds-btn-secondary:hover { background: #0e1522; border-color: #263041; } .ds-btn-secondary:focus-visible { outline: 2px solid #3fe081; outline-offset: 2px; }"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "44x44 control for Pause/Resume, Undo, Skip, and the ⋯ menu. Icon + border + fill all brighten together on hover.",
+      "html": "<button class=\"ds-btn-icon\" aria-label=\"Undo last pick\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" width=\"18\" height=\"18\"><path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h11a5 5 0 0 1 0 10h-1\"/></svg></button>",
+      "css": ".ds-btn-icon { display: flex; align-items: center; justify-content: center; height: 44px; width: 44px; background: #0c111b; color: #8b95a8; border: 1px solid #1b2433; border-radius: 11px; transition: background 150ms, border-color 150ms, color 150ms; } .ds-btn-icon:hover { background: #0e1522; border-color: #263041; color: #e8edf5; } .ds-btn-icon:focus-visible { outline: 2px solid #3fe081; outline-offset: 2px; } .ds-btn-icon:disabled { opacity: .4; pointer-events: none; }"
+    },
+    {
+      "name": "Player Search Input",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "The scoreboard-skin field: leading search glyph, green focus border (no glow), muted-deep placeholder.",
+      "html": "<div class=\"ds-search\"><svg class=\"ds-search-ico\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input class=\"ds-input-field\" placeholder=\"Search a player to draft…\"></div>",
+      "css": ".ds-search { position: relative; } .ds-search-ico { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 17px; height: 17px; color: #5f6a7d; pointer-events: none; } .ds-input-field { width: 100%; box-sizing: border-box; background: #0c111b; color: #e8edf5; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 15px; padding: 12px 16px 12px 44px; border: 1px solid #1b2433; border-radius: 11px; outline: none; transition: border-color 150ms; } .ds-input-field::placeholder { color: #5f6a7d; } .ds-input-field:focus { border-color: #2ba85f; }"
+    },
+    {
+      "name": "On-deck Chip",
+      "kind": "chip",
+      "refersTo": "chip-ondeck",
+      "description": "Upcoming team pill in the scoreboard's On-deck strip; immediate-next pick gets a green pick-number token.",
+      "html": "<span class=\"ds-chip-ondeck\"><span class=\"ds-chip-num\">14</span>Thunderchickens</span>",
+      "css": ".ds-chip-ondeck { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; background: #0e1522; color: #e8edf5; font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 500; font-size: 13px; padding: 4px 10px 4px 6px; border: 1px solid #263041; border-radius: 9999px; } .ds-chip-num { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 20px; padding: 0 6px; border-radius: 9999px; background: rgba(63,224,129,0.14); color: #3fe081; font-weight: 600; font-size: 11px; }"
+    },
+    {
+      "name": "Position Badge",
+      "kind": "chip",
+      "refersTo": "badge-position",
+      "description": "Position tag in the recent-picks ticker; text color is the position's hue on a dark chip.",
+      "html": "<span class=\"ds-badge-pos\">WR</span>",
+      "css": ".ds-badge-pos { display: inline-block; background: #141c2a; color: #fde047; font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 700; font-size: 10px; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 5px; }"
+    },
+    {
+      "name": "On-the-Clock Scoreboard Cell",
+      "kind": "custom",
+      "refersTo": "scoreboard",
+      "description": "The signature left panel — uppercase label over the 52px team name on the dark scoreboard surface.",
+      "html": "<div class=\"ds-clock-panel\"><div class=\"ds-clock-label\">On the clock</div><div class=\"ds-clock-team\">Thunderchickens</div></div>",
+      "css": ".ds-clock-panel { background: #0c111b; border: 1px solid #1b2433; border-radius: 16px; padding: 24px 32px; font-family: 'Space Grotesk', system-ui, sans-serif; } .ds-clock-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.13em; color: #5f6a7d; } .ds-clock-team { margin-top: 4px; font-size: 52px; font-weight: 700; line-height: 1.02; letter-spacing: -0.02em; color: #e8edf5; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Living-Room Jumbotron",
+    "overview": "Big Board is a stadium scoreboard that happens to run in a browser. When a league gathers in one room for its draft — board thrown up on a TV, everyone else following on a phone — the interface carries the charge of live sports broadcast: a giant countdown, a team spotlighted on the clock, a recent-picks ticker crawling along the bottom, a pulsing live dot. The identity is dark by default because the reference is a broadcast lower-third and a jumbotron in a dim room, not a document; a light theme exists and the scoreboard adapts with it — the --bb-* ramp flips to a warm beige sand card on a light page, with fills staying bright green and text/icon/ring greens, ambers, and reds darkening so they stay legible on the beige card. Density is deliberately low where it counts — 96px numerals, 52px team names, generous padding — while the draft grid underneath is the one place density is welcome, because it's a box score. The palette is a near-black blue-slate carrying a single electric green as the voice of go/live/your-turn, amber for caution, coral for over-time, and a functional position palette on the grid. It rejects two things: cuteness (no cartoon rounding, mascots, or emoji-as-UI) and the spreadsheet (no Bloomberg-terminal hairline density that rewards leaning in).",
+    "keyCharacteristics": [
+      "Broadcast-first: the scoreboard is the hero; the countdown is the loudest element on screen.",
+      "Dark, near-black blue-slate surfaces with one electric-green accent for live/go/your-turn.",
+      "Position-as-color: QB/RB/WR/TE/DEF each own a hue so the grid reads as a heat map.",
+      "Space Grotesk throughout, tabular numerals everywhere numbers move.",
+      "Motion is status, not decoration: blinking colon, crawling ticker, pulsing live dot — all with reduced-motion fallbacks.",
+      "Two surfaces, one voice: a phone in the hand and a TV across the room are both primary."
+    ],
+    "rules": [
+      { "name": "The Two-Stage Rule", "body": "The app has two intentional surfaces: the broadcast stage (the scoreboard, on the dark --bb-* ramp) is the hero; the utility stage (the draft grid box score, the forms, the dialogs, on the slate ramp) is the workhorse. Keep them distinct — do not push --bb-* surfaces into the grid or dialogs. Only the accent green and the type system are shared across both stages.", "section": "colors" },
+      { "name": "The One Green Rule", "body": "The system has one accent green: Scoreboard Green (#3fe081). The action-emerald (#10b981) on the home/join/create surfaces is a legacy Tailwind default — treat every new green as Scoreboard Green and migrate old emerald toward it.", "section": "colors" },
+      { "name": "The Functional-Color Rule", "body": "Saturated color on the grid is never decoration — a hue means a position or a state. If a color isn't encoding position or state, it doesn't belong on the board.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Anything that counts, ticks, or gets scanned column-against-column uses tabular-nums — the clock, overall pick numbers, round·pick, on-deck chips.", "section": "typography" },
+      { "name": "The Flat-Signage Rule", "body": "Resting surfaces are flat. Step the tonal ramp or add a 1px stroke instead of a shadow. Shadow is reserved for things that float over the board (menus, popovers).", "section": "elevation" },
+      { "name": "The State-By-Ring Rule", "body": "Selection and status are shown with inset rings and background tints, never elevation: on-the-clock green ring + wash, fill-target amber ring, focus border-to-green.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the two stages distinct (The Two-Stage Rule): the scoreboard on the dark --bb-* ramp is the broadcast hero; the draft grid, forms, and dialogs stay on the slate ramp. Only the accent green and type system cross the seam.",
+      "Do make the countdown the loudest thing on screen — never shrink the 96px clock or 52px team name to fit more chrome.",
+      "Do let the scoreboard adapt to light mode: every --bb-* token is defined in both :root (dark) and html.light. Keep fills bright (--bb-accent) and use --bb-accent-text / the light-mode amber and danger for anything drawn as text, an icon, or a ring so it stays legible on the beige card.",
+      "Do use tabular-nums on every number that moves or aligns.",
+      "Do encode position and state with color — green on-the-clock, amber skipped/paused, coral over-time, fuchsia traded, and the QB/RB/WR/TE/DEF hue set.",
+      "Do hold a 44px minimum touch target on icon controls and give every control default/hover/focus/disabled states.",
+      "Do keep motion as status and always ship the prefers-reduced-motion fallback.",
+      "Do twice-gate destructive actions (Reset lives behind the ⋯ menu and a confirm dialog)."
+    ],
+    "donts": [
+      "Don't go cute — no cartoon rounding, mascots, or emoji-as-UI; the lone football glyph in the wordmark is the ceiling.",
+      "Don't turn the board into a spreadsheet — no hairline density or sub-10px type outside the grid cells.",
+      "Don't introduce a third green or add new UI in action-emerald — converge on Scoreboard Green (#3fe081).",
+      "Don't use shadow to separate resting surfaces; step the tonal ramp or add a 1px stroke.",
+      "Don't use a colored border-left/border-right stripe as an accent; use full borders, tints, or rings.",
+      "Don't use gradient text or background-clip: text; emphasis comes from weight, size, and the one green.",
+      "Don't let a long team or player name overflow its cell or the on-the-clock slot — test real roster names at phone width.",
+      "Don't lean on glassmorphism; the one backdrop-blur (theme toggle) is the exception."
+    ]
+  }
+}

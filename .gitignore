@@ -43,3 +43,6 @@ next-env.d.ts
 
 # claude code local settings (per-user)
 .claude/settings.local.json
+
+# impeccable design skill (local hook cache)
+.impeccable/hook.cache.json

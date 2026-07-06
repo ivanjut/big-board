@@ -48,7 +48,7 @@ function PickColumn({
                 type="checkbox"
                 checked={selected.has(n)}
                 onChange={() => onToggle(n)}
-                className="h-4 w-4 shrink-0 accent-emerald-500"
+                className="h-4 w-4 shrink-0 accent-[var(--bb-accent)]"
               />
               <span className="min-w-0 flex-1">{renderItem(n)}</span>
             </label>
@@ -230,7 +230,7 @@ export function TradeDialog({
   }, [trades]);
 
   const selectCls =
-    "rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500";
+    "rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-[var(--bb-accent-dim)]";
 
   return (
     <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/60 px-4 py-8">
@@ -327,7 +327,7 @@ export function TradeDialog({
               <button
                 type="submit"
                 disabled={saving || count === 0}
-                className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-400 disabled:opacity-50"
+                className="rounded-lg bg-[var(--bb-accent)] px-5 py-2 text-sm font-semibold text-[#04120a] hover:bg-[var(--bb-accent-dim)] disabled:opacity-50"
               >
                 {saving ? "Recording…" : "Record trade"}
               </button>

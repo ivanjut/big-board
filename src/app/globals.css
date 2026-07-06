@@ -48,6 +48,23 @@ body {
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+
+  /* Visible keyboard focus for every interactive control, in the scoreboard
+     accent so it reads on both the dark --bb-* stage and the slate surfaces.
+     :focus-visible keeps it to keyboard/programmatic focus, not mouse clicks;
+     the outline follows each element's own border-radius. Inputs no longer set
+     `outline-none`, so this is their focus indicator too (alongside the border
+     shift). */
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--bb-accent-text);
+    outline-offset: 2px;
+  }
 }
 
 /* Keep the round-label column and member header visible while scrolling a wide board. */
@@ -59,8 +76,12 @@ body {
 
 /* ──────────────────────────────────────────────────────────────────────────
    Draft header / scoreboard — palette and motion from the Big Board design.
-   These tokens are a fixed dark "jumbotron" ramp: the scoreboard reads the same
-   in light or dark mode, independent of the slate theme flip above.
+   Dark values below are the default "jumbotron" ramp; `html.light` further down
+   flips the same tokens to a light "screen" so the scoreboard adapts with the
+   rest of the UI. Two accent greens: --bb-accent is the bright FILL green
+   (buttons, checkboxes, the live dot) and --bb-accent-text is the same green in
+   dark mode but a deeper green in light mode, for anything drawn as TEXT / an
+   icon / a selection ring that must stay legible on the light card.
    ────────────────────────────────────────────────────────────────────────── */
 :root {
   --bb-card: #0c111b;
@@ -69,12 +90,38 @@ body {
   --bb-stroke-2: #263041;
   --bb-text: #e8edf5;
   --bb-muted: #8b95a8;
-  --bb-muted-2: #5f6a7d;
+  /* Tertiary/label text. Tuned to clear WCAG AA (≥4.5:1) on --bb-card and
+     --bb-card-2 so the small broadcast labels stay legible; was #5f6a7d
+     (~3.5:1, failed AA). Muted Deep is the dimness floor — go no lighter. */
+  --bb-muted-2: #7a8699;
   --bb-accent: #3fe081;
   --bb-accent-dim: #2ba85f;
+  --bb-accent-text: #3fe081;
   --bb-amber: #f0a13a;
   --bb-danger: #f2726e;
   --bb-pk: #182233;
+}
+
+/* Light-mode scoreboard. The --bb-* ramp flips to a warm beige "sand" card on a
+   light page so the scoreboard adapts instead of staying a dark jumbotron (and
+   reads as a distinct warm stage, not a plain white panel). The fill green stays
+   bright; because beige is darker than white, --bb-muted-2 / --bb-accent-text /
+   --bb-amber are tuned a step darker so text, icons, and rings still clear
+   ≥4.5:1 (≥3:1 for the large clock digits and selection rings) on the sand. */
+html.light {
+  --bb-card: #f5efe1;
+  --bb-card-2: #ece3cf;
+  --bb-stroke: #e4dbc7;
+  --bb-stroke-2: #d3c8ae;
+  --bb-text: #0f172a;
+  --bb-muted: #475569;
+  --bb-muted-2: #566172;
+  --bb-accent: #22c55e;
+  --bb-accent-dim: #16a34a;
+  --bb-accent-text: #166534;
+  --bb-amber: #96490a;
+  --bb-danger: #dc2626;
+  --bb-pk: #e8dfca;
 }
 
 /* Blinking separator in the countdown. */
@@ -149,10 +196,43 @@ body {
   }
 }
 
+/* Loading skeleton for the scoreboard shell — a muted placeholder block with a
+   soft shimmer sweeping across it. Uses --bb-pk so it sits inside the scoreboard
+   card without a hard edge. */
+.bb-skel {
+  position: relative;
+  overflow: hidden;
+  background: var(--bb-pk);
+  border-radius: 8px;
+}
+.bb-skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(232, 237, 245, 0.06),
+    transparent
+  );
+  animation: bb-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes bb-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bb-colon,
   .bb-marquee,
   .bb-live-dot {
     animation: none;
+  }
+  /* Drop the shimmer sweep; the muted block itself still communicates loading. */
+  .bb-skel::after {
+    animation: none;
+    opacity: 0;
   }
 }

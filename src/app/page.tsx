@@ -16,7 +16,7 @@ export default function Home() {
       <div className="grid gap-4">
         <Link
           href="/draft/new"
-          className="rounded-xl bg-emerald-500 px-6 py-4 text-center text-lg font-semibold text-emerald-950 transition hover:bg-emerald-400"
+          className="rounded-xl bg-[var(--bb-accent)] px-6 py-4 text-center text-lg font-semibold text-[#04120a] transition hover:bg-[var(--bb-accent-dim)]"
         >
           Create a draft
         </Link>

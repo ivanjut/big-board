@@ -70,7 +70,7 @@ export function CreateDraftForm() {
   }
 
   const inputCls =
-    "rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500";
+    "rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-[var(--bb-accent-dim)]";
 
   return (
     <form onSubmit={submit} className="grid gap-6">
@@ -115,7 +115,7 @@ export function CreateDraftForm() {
           type="checkbox"
           checked={includeIdp}
           onChange={(e) => setIncludeIdp(e.target.checked)}
-          className="h-4 w-4 accent-emerald-500"
+          className="h-4 w-4 accent-[var(--bb-accent)]"
         />
         <span className="text-sm text-slate-300">
           Include individual defensive players (IDPs)
@@ -128,7 +128,7 @@ export function CreateDraftForm() {
             type="checkbox"
             checked={useTimer}
             onChange={(e) => setUseTimer(e.target.checked)}
-            className="h-4 w-4 accent-emerald-500"
+            className="h-4 w-4 accent-[var(--bb-accent)]"
           />
           <span className="text-sm text-slate-300">Time limit per pick</span>
         </label>
@@ -191,7 +191,7 @@ export function CreateDraftForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-xl bg-emerald-500 px-6 py-3 font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-60"
+        className="rounded-xl bg-[var(--bb-accent)] px-6 py-3 font-semibold text-[#04120a] transition hover:bg-[var(--bb-accent-dim)] disabled:opacity-60"
       >
         {submitting ? "Creating…" : "Create draft"}
       </button>

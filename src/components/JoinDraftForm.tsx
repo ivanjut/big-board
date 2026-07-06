@@ -27,7 +27,7 @@ export function JoinDraftForm() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Draft link or ID"
-        className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+        className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-[var(--bb-accent-dim)]"
       />
       <button
         type="submit"
