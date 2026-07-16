@@ -159,53 +159,6 @@ function splitName(full: string): { first: string; last: string } {
   };
 }
 
-// "⋯" overflow menu that guards the destructive Reset behind a click (which
-// then still goes through the usual confirmation dialog).
-function MoreMenu({ onReset }: { onReset: () => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="More draft actions"
-        title="More draft actions"
-        className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] text-xl leading-none text-[var(--bb-muted)] transition-colors hover:border-[var(--bb-stroke-2)] hover:text-[var(--bb-text)]"
-      >
-        ⋯
-      </button>
-      {open && (
-        <>
-          {/* click-anywhere-to-close backdrop */}
-          <div
-            className="fixed inset-0 z-10"
-            aria-hidden
-            onClick={() => setOpen(false)}
-          />
-          <div
-            role="menu"
-            className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-700 bg-slate-900 p-1 shadow-xl"
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onReset();
-              }}
-              className="block w-full rounded-md px-3 py-2 text-left text-sm text-red-300 hover:bg-red-500/10"
-            >
-              Reset draft…
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 // "Download" split menu: pick CSV (plain) or Excel (.xlsx, keeps colors). The
 // footer note spells out the difference between the two formats.
 function DownloadMenu({
@@ -429,11 +382,11 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     // is coming", not "nothing here". Mirrors the top chrome + scoreboard layout.
     return (
       <main
-        className="mx-auto max-w-[1800px] px-3 py-4 sm:px-6"
+        className="mx-auto max-w-[1800px] px-3 py-3 sm:px-6"
         aria-busy="true"
         aria-label="Loading draft"
       >
-        <div className="flex flex-wrap items-start justify-between gap-4 px-1.5 pb-5 pr-12">
+        <div className="flex flex-wrap items-start justify-between gap-4 px-1.5 pb-3 pr-12">
           <div className="space-y-2">
             <div className="bb-skel h-3.5 w-20" />
             <div className="bb-skel h-8 w-56" />
@@ -444,7 +397,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           </div>
         </div>
         <div className="overflow-hidden rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)]">
-          <div className="grid grid-cols-1 items-center gap-6 px-6 py-8 sm:grid-cols-[1fr_auto_1fr] sm:gap-7 sm:px-8">
+          <div className="grid grid-cols-1 items-center gap-6 px-6 py-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-7 sm:px-8">
             <div className="space-y-3 text-center sm:text-left">
               <div className="bb-skel mx-auto h-3 w-24 sm:mx-0" />
               <div className="bb-skel mx-auto h-12 w-52 sm:mx-0" />
@@ -550,7 +503,8 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     });
   const tickerScrolls = recentPicks.length >= 5;
 
-  // Trade entry point — sits beside the ⋯ menu, above the board.
+  // Trade entry point — sits beside the player search in the command bar (and in
+  // the pending/complete control rows). Opens the trade dialog for everyone.
   const tradesButton = (
     <button
       type="button"
@@ -569,10 +523,61 @@ export function DraftBoard({ draftId }: { draftId: string }) {
     </button>
   );
 
+  // Commissioner action dock — Pause/Resume, Undo, Skip. Sits as the scoreboard's
+  // left column: a vertical rail with a divider on sm+, a horizontal row on
+  // phones. Only rendered while the draft is in progress.
+  const dock = (
+    <div className="flex items-center justify-center gap-2 sm:flex-col sm:justify-center sm:self-stretch sm:border-r sm:border-[var(--bb-stroke)] sm:pr-6">
+      {paused ? (
+        <button
+          onClick={() => post("resume")}
+          disabled={busy}
+          aria-label="Resume draft"
+          title="Resume draft"
+          className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-accent-dim)] bg-[rgba(63,224,129,0.1)] text-[var(--bb-accent-text)] transition-colors hover:bg-[rgba(63,224,129,0.16)] disabled:pointer-events-none disabled:opacity-40"
+        >
+          <PlayIcon className="h-[18px] w-[18px]" />
+        </button>
+      ) : (
+        <button
+          onClick={() => post("pause")}
+          disabled={!active || busy}
+          aria-label="Pause draft"
+          title="Pause draft"
+          className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[rgba(240,161,58,0.4)] bg-[rgba(240,161,58,0.08)] text-[var(--bb-amber)] transition-colors hover:bg-[rgba(240,161,58,0.14)] disabled:pointer-events-none disabled:opacity-40"
+        >
+          <PauseIcon className="h-[18px] w-[18px]" />
+        </button>
+      )}
+      <button
+        onClick={() => post("undo")}
+        disabled={paused || busy}
+        aria-label="Undo last pick"
+        title="Undo last pick"
+        className={IBTN}
+      >
+        <UndoIcon className="h-[18px] w-[18px]" />
+      </button>
+      <button
+        onClick={() => post("skip")}
+        disabled={!active || !onFrontier || busy}
+        aria-label="Skip this pick"
+        title={
+          onFrontier
+            ? "Skip this pick (return to it later)"
+            : "This pick was skipped — fill it from the board"
+        }
+        className={IBTN}
+      >
+        <SkipIcon className="h-[18px] w-[18px]" />
+      </button>
+    </div>
+  );
+
   return (
-    <main className="mx-auto max-w-[1800px] px-3 py-4 sm:px-6">
+    <main className="mx-auto max-w-[1800px] px-3 py-3 sm:flex sm:h-dvh sm:flex-col sm:overflow-hidden sm:px-6">
       {/* Top chrome (pr clears the fixed theme toggle in the top-right corner) */}
-      <div className="flex flex-wrap items-start justify-between gap-4 px-1.5 pb-5 pr-12">
+      <div className="flex flex-wrap items-start justify-between gap-4 px-1.5 pb-3 pr-12">
         <div>
           <Link
             href="/"
@@ -624,27 +629,61 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         </form>
       )}
 
-      {/* Status banner */}
+      {/* Status banner, with its controls (Start / Undo + Trades) beneath it */}
       {pending || complete ? (
-        <div className="rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-5 py-4">
-          {pending ? (
-            <span className="text-sm text-[var(--bb-muted)]">
-              {canEdit
-                ? "Draft hasn't started — press Start when everyone's ready."
-                : "Waiting for the commissioner to start the draft."}
-            </span>
-          ) : (
-            <span className="font-semibold text-[var(--bb-accent-text)]">
-              Draft complete 🎉
-            </span>
-          )}
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)] px-5 py-4">
+            {pending ? (
+              <span className="text-sm text-[var(--bb-muted)]">
+                {canEdit
+                  ? "Draft hasn't started — press Start when everyone's ready."
+                  : "Waiting for the commissioner to start the draft."}
+              </span>
+            ) : (
+              <span className="font-semibold text-[var(--bb-accent-text)]">
+                Draft complete 🎉
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2.5">
+            {canEdit && pending && (
+              <button
+                onClick={() => post("start")}
+                disabled={busy}
+                className="flex flex-1 items-center justify-center gap-2 rounded-[11px] bg-[var(--bb-accent)] px-6 py-3 text-center font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)] disabled:pointer-events-none disabled:opacity-60"
+              >
+                <PlayIcon className="h-4 w-4" />
+                Start draft
+              </button>
+            )}
+            {canEdit && complete && (
+              <button
+                onClick={() => post("undo")}
+                disabled={busy}
+                aria-label="Undo last pick"
+                title="Undo last pick"
+                className={IBTN}
+              >
+                <UndoIcon className="h-[18px] w-[18px]" />
+              </button>
+            )}
+            {tradesButton}
+          </div>
         </div>
       ) : (
-        /* Scoreboard: team on the clock · big timer · round/pick, with a live
-           recent-picks ticker along the bottom. */
-        <div className="overflow-hidden rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)] text-[var(--bb-text)]">
-          <div className="grid grid-cols-1 items-center gap-6 px-6 py-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-7 sm:px-8">
-            {/* Left — team on the clock, with the on-deck strip beneath it */}
+        /* Scoreboard: action dock · team on the clock · big timer · round/pick,
+           with a live recent-picks ticker along the bottom. */
+        <div className="rounded-2xl border border-[var(--bb-stroke)] bg-[var(--bb-card)] text-[var(--bb-text)]">
+          <div
+            className={`grid grid-cols-1 items-stretch gap-6 px-6 py-5 sm:gap-7 sm:px-8 ${
+              canEdit
+                ? "sm:grid-cols-[auto_1fr_auto_1fr]"
+                : "sm:grid-cols-[1fr_auto_1fr]"
+            }`}
+          >
+            {/* Left rail — Pause/Undo/Skip (commissioner only) */}
+            {canEdit && dock}
+            {/* Team on the clock, with the on-deck strip beneath it */}
             <div className="min-w-0 text-center sm:text-left">
               <div className="text-xs font-semibold uppercase tracking-[0.13em] text-[var(--bb-muted-2)]">
                 On the clock
@@ -686,8 +725,17 @@ export function DraftBoard({ draftId }: { draftId: string }) {
               )}
             </div>
 
-            {/* Center — prominent countdown (color/blink handled by PickTimer) */}
-            <div className="text-center">
+            {/* Center — status label, the countdown, then the player search
+                expanded to the timer's full width right beneath it */}
+            <div className="flex flex-col text-center">
+              <div className="mb-2 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--bb-muted-2)]">
+                {paused && (
+                  <span className="rounded bg-[rgba(240,161,58,0.14)] px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-[var(--bb-amber)]">
+                    ⏸ Paused
+                  </span>
+                )}
+                <span>{draft.pickSeconds == null ? "Elapsed" : "Remaining"}</span>
+              </div>
               <div className="text-7xl font-bold leading-none tracking-[-0.02em] tabular-nums sm:text-[96px]">
                 <PickTimer
                   startedAt={draft.currentPickStartedAt}
@@ -696,18 +744,24 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                   key={clockNum ?? draft.currentPick}
                 />
               </div>
-              <div className="mt-1.5 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--bb-muted-2)]">
-                {paused && (
-                  <span className="rounded bg-[rgba(240,161,58,0.14)] px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-[var(--bb-amber)]">
-                    ⏸ Paused
-                  </span>
-                )}
-                <span>{draft.pickSeconds == null ? "Elapsed" : "Remaining"}</span>
-              </div>
+              {/* Player search — spans the timer's width, right under the
+                  countdown. Trades lives in the round·pick column, floated far
+                  right on this same line. */}
+              {canEdit && (
+                <div className="mt-3">
+                  <PlayerSearch
+                    draftId={draftId}
+                    onPick={makePick}
+                    disabled={complete || paused}
+                    pending={picking}
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Right — round · pick, plus the overall pick number */}
-            <div className="text-center sm:text-right">
+            {/* Right — round · pick, the overall pick number, then Trades floated
+                to the far right, dropped onto the search's line */}
+            <div className="flex flex-col text-center sm:text-right">
               <div className="text-xs font-semibold uppercase tracking-[0.13em] text-[var(--bb-muted-2)]">
                 Round · Pick
               </div>
@@ -722,12 +776,15 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                   #{clockNum}
                 </span>
               </div>
+              <div className="mt-4 flex justify-center sm:mt-auto sm:justify-end">
+                {tradesButton}
+              </div>
             </div>
           </div>
 
           {/* Recent-picks ticker */}
           {recentPicks.length > 0 && (
-            <div className="bb-ticker flex items-stretch border-t border-[var(--bb-stroke)]">
+            <div className="bb-ticker flex items-stretch overflow-hidden rounded-b-2xl border-t border-[var(--bb-stroke)]">
               <div className="inline-flex flex-shrink-0 items-center gap-2.5 border-r border-[var(--bb-stroke)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--bb-muted)]">
                 <span className="bb-live-dot" />
                 Recent picks
@@ -773,97 +830,6 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         </div>
       )}
 
-      {/* Controls (only when unlocked) — inline dock + centered search + guarded reset */}
-      {canEdit &&
-        (pending ? (
-          <div className="mt-5 flex items-center gap-2.5">
-            <button
-              onClick={() => post("start")}
-              disabled={busy}
-              className="flex flex-1 items-center justify-center gap-2 rounded-[11px] bg-[var(--bb-accent)] px-6 py-3 text-center font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)] disabled:pointer-events-none disabled:opacity-60"
-            >
-              <PlayIcon className="h-4 w-4" />
-              Start draft
-            </button>
-            {tradesButton}
-            <MoreMenu onReset={() => setShowReset(true)} />
-          </div>
-        ) : (
-          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-            {/* Search — full-width on top for phones, centered in the middle
-                column on desktop. Kept off the cramped 3-across mobile row. */}
-            <div className="order-first w-full sm:order-none sm:col-start-2 sm:row-start-1 sm:mx-auto sm:max-w-[480px]">
-              <PlayerSearch
-                draftId={draftId}
-                onPick={makePick}
-                disabled={complete || paused}
-                pending={picking}
-              />
-            </div>
-
-            {/* Controls row — dock on the left, trades/reset on the right. On a
-                phone it's one row under the search; on desktop `sm:contents`
-                flattens it so the two clusters land in the outer grid columns. */}
-            <div className="flex items-center justify-between gap-2 sm:contents">
-              {/* Dock — Pause/Resume + Undo + Skip */}
-              <div className="flex gap-2 sm:col-start-1 sm:row-start-1">
-                {paused ? (
-                  <button
-                    onClick={() => post("resume")}
-                    disabled={busy}
-                    aria-label="Resume draft"
-                    title="Resume draft"
-                    className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[var(--bb-accent-dim)] bg-[rgba(63,224,129,0.1)] text-[var(--bb-accent-text)] transition-colors hover:bg-[rgba(63,224,129,0.16)] disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    <PlayIcon className="h-[18px] w-[18px]" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => post("pause")}
-                    disabled={!active || busy}
-                    aria-label="Pause draft"
-                    title="Pause draft"
-                    className="flex h-11 w-11 items-center justify-center rounded-[11px] border border-[rgba(240,161,58,0.4)] bg-[rgba(240,161,58,0.08)] text-[var(--bb-amber)] transition-colors hover:bg-[rgba(240,161,58,0.14)] disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    <PauseIcon className="h-[18px] w-[18px]" />
-                  </button>
-                )}
-                <button
-                  onClick={() => post("undo")}
-                  disabled={paused || busy}
-                  aria-label="Undo last pick"
-                  title="Undo last pick"
-                  className={IBTN}
-                >
-                  <UndoIcon className="h-[18px] w-[18px]" />
-                </button>
-                <button
-                  onClick={() => post("skip")}
-                  disabled={!active || !onFrontier || busy}
-                  aria-label="Skip this pick"
-                  title={
-                    onFrontier
-                      ? "Skip this pick (return to it later)"
-                      : "This pick was skipped — fill it from the board"
-                  }
-                  className={IBTN}
-                >
-                  <SkipIcon className="h-[18px] w-[18px]" />
-                </button>
-              </div>
-
-              {/* Trades + guarded reset behind a ⋯ menu */}
-              <div className="flex items-center gap-2 sm:col-start-3 sm:row-start-1">
-                {tradesButton}
-                <MoreMenu onReset={() => setShowReset(true)} />
-              </div>
-            </div>
-          </div>
-        ))}
-
-      {/* Viewers can still open the trade history/board (read-only). */}
-      {!canEdit && <div className="mt-5 flex justify-end">{tradesButton}</div>}
-
       {/* Returning to a skipped pick — the search now fills this one. */}
       {canEdit && fillTarget != null && skippedSet.has(fillTarget) && (
         <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-700/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
@@ -888,18 +854,25 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         </p>
       )}
 
-      {/* Board */}
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+      {/* Board — the only scrolling region on sm+ (the hero above stays pinned);
+          on phones it keeps natural page scroll. */}
+      <div className="relative z-0 mt-3 overflow-x-auto rounded-xl border border-slate-800 sm:min-h-0 sm:flex-1 sm:overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
-              <th className="sticky-col bg-slate-900 px-2 py-2 text-xs font-medium text-slate-500">
+              <th
+                // z-30 (inline so it beats .sticky-col's own z-index) keeps this
+                // top-left corner above both the sticky header row and the sticky
+                // round column where they meet.
+                style={{ zIndex: 30 }}
+                className="sticky-col bg-slate-900 px-2 py-2 text-xs font-medium text-slate-500 sm:top-0"
+              >
                 Rd
               </th>
               {members.map((m) => (
                 <th
                   key={m.slot}
-                  className="min-w-[120px] border-l border-slate-800 bg-slate-900 px-2 py-2 text-center text-xs font-semibold text-slate-200"
+                  className="min-w-[120px] border-l border-slate-800 bg-slate-900 px-2 py-2 text-center text-xs font-semibold text-slate-200 sm:sticky sm:top-0 sm:z-10"
                 >
                   <span className="block">{m.name}</span>
                 </th>
@@ -1053,6 +1026,10 @@ export function DraftBoard({ draftId }: { draftId: string }) {
           onSaved={async () => {
             setShowSettings(false);
             await refetch();
+          }}
+          onReset={() => {
+            setShowSettings(false);
+            setShowReset(true);
           }}
         />
       )}

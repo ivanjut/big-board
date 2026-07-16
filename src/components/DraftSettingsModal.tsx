@@ -14,6 +14,7 @@ export function DraftSettingsModal({
   maxDraftedRound,
   onClose,
   onSaved,
+  onReset,
 }: {
   draftId: string;
   draft: DraftConfig;
@@ -22,6 +23,8 @@ export function DraftSettingsModal({
   maxDraftedRound: number;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
+  // Opens the guarded reset flow (confirmation dialog lives in DraftBoard).
+  onReset: () => void;
 }) {
   const [name, setName] = useState(draft.name);
   const [numSlots, setNumSlots] = useState(draft.numSlots);
@@ -230,21 +233,30 @@ export function DraftSettingsModal({
             </p>
           )}
 
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center justify-between gap-2 border-t border-slate-800 pt-4">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800"
+              onClick={onReset}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--bb-danger)] transition-colors hover:bg-red-500/10"
             >
-              Cancel
+              Reset draft…
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-[var(--bb-accent)] px-5 py-2 text-sm font-semibold text-[#04120a] hover:bg-[var(--bb-accent-dim)] disabled:opacity-60"
-            >
-              {saving ? "Saving…" : "Save settings"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-lg bg-[var(--bb-accent)] px-5 py-2 text-sm font-semibold text-[#04120a] hover:bg-[var(--bb-accent-dim)] disabled:opacity-60"
+              >
+                {saving ? "Saving…" : "Save settings"}
+              </button>
+            </div>
           </div>
         </div>
       </form>

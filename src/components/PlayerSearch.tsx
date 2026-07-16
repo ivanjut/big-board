@@ -146,7 +146,7 @@ export function PlayerSearch({
               ? "Drafting…"
               : "Search a player to draft…"
         }
-        className="w-full rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] py-3 pl-11 pr-4 text-[15px] text-[var(--bb-text)] transition-colors placeholder:text-[var(--bb-muted-2)] focus:border-[var(--bb-accent-dim)] disabled:opacity-50"
+        className="w-full rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card-2)] py-3 pl-11 pr-4 text-[15px] text-[var(--bb-text)] transition-colors placeholder:text-[var(--bb-muted-2)] focus:border-[var(--bb-accent-dim)] disabled:opacity-50"
       />
       {open && results.length > 0 && (
         <ul className="absolute z-20 mt-1.5 max-h-72 w-full overflow-auto rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] shadow-xl">
