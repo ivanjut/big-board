@@ -23,6 +23,10 @@ export type Pick = {
   playerName: string;
   playerPosition: string | null;
   playerTeam: string | null;
+  // How the pick was made: filled after being skipped, and/or by the auto-pick
+  // action. Both false for a normal on-the-clock manual pick.
+  wasSkipped: boolean;
+  autoPicked: boolean;
 };
 
 // One pick movement in a draft's trade log: pick `pickNumber` moved from one

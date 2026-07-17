@@ -966,12 +966,36 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                         <span className="absolute right-1 top-0.5 text-[10px] text-slate-600">
                           {pickNumber}
                         </span>
-                        {traded && (
-                          <span
-                            title={`Traded to ${ownerName}`}
-                            className="absolute bottom-0.5 left-1 max-w-[calc(100%-0.5rem)] truncate rounded bg-fuchsia-500/25 px-1 text-[9px] font-semibold uppercase tracking-wide text-fuchsia-200 light:text-fuchsia-800"
-                          >
-                            ⇄ {ownerName}
+                        {(traded || pick?.wasSkipped || pick?.autoPicked) && (
+                          <span className="absolute bottom-0.5 left-1 flex max-w-[calc(100%-0.5rem)] items-center gap-1">
+                            {/* Origin icons — same glyphs as the dock's Skip /
+                                Auto-pick buttons, marking how the pick was made. */}
+                            {pick?.wasSkipped && (
+                              <span
+                                title="Skipped, then filled"
+                                className="flex text-amber-400 light:text-amber-600"
+                              >
+                                <SkipIcon className="h-[11px] w-[11px]" />
+                                <span className="sr-only">Skipped, then filled</span>
+                              </span>
+                            )}
+                            {pick?.autoPicked && (
+                              <span
+                                title="Auto-picked"
+                                className="flex text-slate-500"
+                              >
+                                <AutoPickIcon className="h-[11px] w-[11px]" />
+                                <span className="sr-only">Auto-picked</span>
+                              </span>
+                            )}
+                            {traded && (
+                              <span
+                                title={`Traded to ${ownerName}`}
+                                className="min-w-0 truncate rounded bg-fuchsia-500/25 px-1 text-[9px] font-semibold uppercase tracking-wide text-fuchsia-200 light:text-fuchsia-800"
+                              >
+                                ⇄ {ownerName}
+                              </span>
+                            )}
                           </span>
                         )}
                         {meta && (

@@ -25,7 +25,8 @@ export async function GET(
   `;
 
   const picks = await db`
-    select pick_number, round, slot, player_id, player_name, player_position, player_team
+    select pick_number, round, slot, player_id, player_name, player_position, player_team,
+           was_skipped, auto_picked
     from picks where draft_id = ${id} order by pick_number
   `;
 
@@ -65,6 +66,8 @@ export async function GET(
       playerName: p.player_name,
       playerPosition: p.player_position,
       playerTeam: p.player_team,
+      wasSkipped: p.was_skipped,
+      autoPicked: p.auto_picked,
     })),
     trades: trades.map((t) => ({
       transactionId: t.transaction_id,

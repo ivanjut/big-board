@@ -78,9 +78,9 @@ export async function POST(
   try {
     await db`
       insert into picks
-        (draft_id, pick_number, round, slot, player_id, player_name, player_position, player_team)
+        (draft_id, pick_number, round, slot, player_id, player_name, player_position, player_team, was_skipped)
       values
-        (${id}, ${targetPick}, ${round}, ${slot}, ${player.id}, ${player.name}, ${player.position}, ${player.team})
+        (${id}, ${targetPick}, ${round}, ${slot}, ${player.id}, ${player.name}, ${player.position}, ${player.team}, ${skippedSet.has(targetPick)})
     `;
   } catch (e) {
     // Unique violation -> player already drafted, or this pick was just taken.

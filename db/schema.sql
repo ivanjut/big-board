@@ -73,10 +73,16 @@ create table if not exists picks (
   player_name     text not null,
   player_position text,
   player_team     text,
+  was_skipped     boolean not null default false, -- filled after being skipped (deferred)
+  auto_picked     boolean not null default false, -- made by the auto-pick action
   created_at      timestamptz not null default now(),
   unique (draft_id, pick_number),
   unique (draft_id, player_id)        -- a player can only be drafted once per draft
 );
+
+-- Bring pre-existing databases up to the current shape (idempotent).
+alter table picks add column if not exists was_skipped boolean not null default false;
+alter table picks add column if not exists auto_picked boolean not null default false;
 
 create index if not exists picks_draft_idx on picks (draft_id);
 
