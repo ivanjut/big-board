@@ -78,6 +78,17 @@ const SkipIcon = ({ className }: IconProps) => (
     <path d="M13 5l8 7-8 7V5z" />
   </svg>
 );
+// Dice (5-pip) — the auto-pick action, which drafts a random undrafted player.
+const AutoPickIcon = ({ className }: IconProps) => (
+  <svg className={className} {...strokeProps}>
+    <rect x="3" y="3" width="18" height="18" rx="3" />
+    <circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="8" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="16" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="16" r="1.1" fill="currentColor" stroke="none" />
+  </svg>
+);
 
 // Shared button treatments from the design's `.cbtn` / `.ibtn` / `.trades`.
 const CBTN =
@@ -570,6 +581,15 @@ export function DraftBoard({ draftId }: { draftId: string }) {
         className={IBTN}
       >
         <SkipIcon className="h-[18px] w-[18px]" />
+      </button>
+      <button
+        onClick={() => post("autopick")}
+        disabled={!active || busy}
+        aria-label="Auto-pick a random player"
+        title="Auto-pick — draft a random undrafted player with an ADP 20–30 picks out"
+        className={IBTN}
+      >
+        <AutoPickIcon className="h-[18px] w-[18px]" />
       </button>
     </div>
   );
