@@ -852,7 +852,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
 
       {/* Returning to a skipped pick — the search now fills this one. */}
       {canEdit && fillTarget != null && skippedSet.has(fillTarget) && (
-        <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-700/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-700/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 light:text-amber-900">
           <span>
             Filling skipped pick{" "}
             <span className="font-semibold">#{fillTarget}</span>
@@ -1023,10 +1023,10 @@ export function DraftBoard({ draftId }: { draftId: string }) {
                             On the clock
                           </span>
                         ) : isSkipped ? (
-                          <span className="block pt-2 text-[10px] font-semibold uppercase text-amber-400">
+                          <span className="block pt-2 text-[10px] font-semibold uppercase text-amber-400 light:text-amber-700">
                             ⏭ Skipped
                             {returnable && (
-                              <span className="block text-[9px] font-medium normal-case text-amber-300/80">
+                              <span className="block text-[9px] font-medium normal-case text-amber-300/80 light:text-amber-700/80">
                                 click to fill
                               </span>
                             )}
