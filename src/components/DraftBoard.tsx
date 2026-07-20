@@ -15,6 +15,7 @@ import { boardToCsv, boardToXlsx, slugifyName } from "@/lib/exportBoard";
 import { PlayerSearch } from "./PlayerSearch";
 import { PickTimer } from "./PickTimer";
 import { DraftSettingsModal } from "./DraftSettingsModal";
+import { DraftCompleteModal } from "./DraftCompleteModal";
 import { TradeDialog } from "./TradeDialog";
 
 // ── Lucide-style line/solid icons matching the Big Board scoreboard design ──
@@ -76,6 +77,17 @@ const SkipIcon = ({ className }: IconProps) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M4 5l8 7-8 7V5z" />
     <path d="M13 5l8 7-8 7V5z" />
+  </svg>
+);
+// Trophy — the end-of-draft "Complete Draft" recap action.
+const TrophyIcon = ({ className }: IconProps) => (
+  <svg className={className} {...strokeProps}>
+    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+    <path d="M4 22h16" />
+    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
   </svg>
 );
 // Dice (5-pip) — the auto-pick action, which drafts a random undrafted player.
@@ -253,6 +265,7 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   const [showReset, setShowReset] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showTrades, setShowTrades] = useState(false);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [copied, setCopied] = useState(false);
   // In-flight flag for any commissioner action (pick, undo, skip, pause…) — used
   // to disable the controls so a fast double-tap can't fire the same action twice.
@@ -677,15 +690,26 @@ export function DraftBoard({ draftId }: { draftId: string }) {
               </button>
             )}
             {canEdit && complete && (
-              <button
-                onClick={() => post("undo")}
-                disabled={busy}
-                aria-label="Undo last pick"
-                title="Undo last pick"
-                className={IBTN}
-              >
-                <UndoIcon className="h-[18px] w-[18px]" />
-              </button>
+              <>
+                {/* The primary action once the board is full — stands where the
+                    player search / Start button lived. Opens the recap modal. */}
+                <button
+                  onClick={() => setShowCompleteModal(true)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-[11px] bg-[var(--bb-accent)] px-6 py-3 text-center font-semibold text-[#04120a] transition-colors hover:bg-[var(--bb-accent-dim)]"
+                >
+                  <TrophyIcon className="h-4 w-4" />
+                  Complete Draft
+                </button>
+                <button
+                  onClick={() => post("undo")}
+                  disabled={busy}
+                  aria-label="Undo last pick"
+                  title="Undo last pick"
+                  className={IBTN}
+                >
+                  <UndoIcon className="h-[18px] w-[18px]" />
+                </button>
+              </>
             )}
             {tradesButton}
           </div>
@@ -1075,6 +1099,19 @@ export function DraftBoard({ draftId }: { draftId: string }) {
             setShowSettings(false);
             setShowReset(true);
           }}
+        />
+      )}
+
+      {/* End-of-draft recap (thanks + auto-pick/skip/trade summaries + export) */}
+      {showCompleteModal && complete && (
+        <DraftCompleteModal
+          draftName={draft.name}
+          numSlots={draft.numSlots}
+          members={members}
+          picks={state.picks}
+          trades={state.trades}
+          onDownload={downloadBoard}
+          onClose={() => setShowCompleteModal(false)}
         />
       )}
 
