@@ -69,7 +69,7 @@ create table if not exists picks (
   pick_number     int  not null,      -- overall pick, 1-indexed
   round           int  not null,
   slot            int  not null,      -- which drafting slot made the pick
-  player_id       bigint not null references players(id),
+  player_id       bigint references players(id), -- null for a written-in custom name
   player_name     text not null,
   player_position text,
   player_team     text,
@@ -83,6 +83,8 @@ create table if not exists picks (
 -- Bring pre-existing databases up to the current shape (idempotent).
 alter table picks add column if not exists was_skipped boolean not null default false;
 alter table picks add column if not exists auto_picked boolean not null default false;
+-- player_id is nullable so a commissioner can write in a name not in the DB.
+alter table picks alter column player_id drop not null;
 
 create index if not exists picks_draft_idx on picks (draft_id);
 

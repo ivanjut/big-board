@@ -19,7 +19,8 @@ export type Pick = {
   pickNumber: number;
   round: number;
   slot: number;
-  playerId: number;
+  // null when the commissioner wrote in a custom name not in the player DB.
+  playerId: number | null;
   playerName: string;
   playerPosition: string | null;
   playerTeam: string | null;

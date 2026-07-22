@@ -476,11 +476,11 @@ export function DraftBoard({ draftId }: { draftId: string }) {
   // targeted (and still open), otherwise the pick on the clock.
   const activeFill =
     fillTarget != null && skippedSet.has(fillTarget) ? fillTarget : clockNum;
-  const makePick = async (playerId: number) => {
+  const makePick = async (sel: { playerId: number } | { name: string }) => {
     if (activeFill == null) return;
     setPicking(true);
     try {
-      if (await post("pick", { playerId, pickNumber: activeFill }))
+      if (await post("pick", { ...sel, pickNumber: activeFill }))
         setFillTarget(null);
     } finally {
       setPicking(false);

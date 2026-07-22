@@ -11,7 +11,8 @@ export function PlayerSearch({
   pending,
 }: {
   draftId: string;
-  onPick: (playerId: number) => Promise<void>;
+  // Draft a matched DB player by id, or write in a custom name not in the DB.
+  onPick: (sel: { playerId: number } | { name: string }) => Promise<void>;
   disabled?: boolean;
   // True while a pick is being submitted; shows a pending affordance and drives
   // the auto-refocus after the pick lands.
@@ -79,25 +80,48 @@ export function PlayerSearch({
     prevPending.current = !!pending;
   }, [pending, disabled]);
 
-  async function choose(p: PlayerResult) {
+  // The trimmed query is offered as a write-in pick at the bottom of the list,
+  // so a name not in the player DB can still be drafted.
+  const custom = q.trim();
+  const canAddCustom = custom.length >= 2;
+  // Virtual index of the write-in row, one past the last matched player.
+  const customIndex = canAddCustom ? results.length : -1;
+  const itemCount = results.length + (canAddCustom ? 1 : 0);
+  const showList = open && itemCount > 0;
+
+  function reset() {
     setOpen(false);
     setQ("");
     setResults([]);
-    await onPick(p.id);
+  }
+
+  async function choose(p: PlayerResult) {
+    reset();
+    await onPick({ playerId: p.id });
+  }
+
+  async function chooseCustom() {
+    const name = q.trim();
+    if (name.length < 2) return;
+    reset();
+    await onPick({ name });
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (!open || results.length === 0) return;
+    if (!open || itemCount === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((a) => Math.min(a + 1, results.length - 1));
+      setActive((a) => Math.min(a + 1, itemCount - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => Math.max(a - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const p = results[active];
-      if (p) choose(p);
+      if (active === customIndex) chooseCustom();
+      else {
+        const p = results[active];
+        if (p) choose(p);
+      }
     } else if (e.key === "Escape") {
       setOpen(false);
     }
@@ -138,7 +162,7 @@ export function PlayerSearch({
         disabled={disabled || pending}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={onKeyDown}
-        onFocus={() => results.length && setOpen(true)}
+        onFocus={() => (results.length || canAddCustom) && setOpen(true)}
         placeholder={
           disabled
             ? "Draft complete"
@@ -148,7 +172,7 @@ export function PlayerSearch({
         }
         className="w-full rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card-2)] py-3 pl-11 pr-4 text-[15px] text-[var(--bb-text)] transition-colors placeholder:text-[var(--bb-muted-2)] focus:border-[var(--bb-accent-dim)] disabled:opacity-50"
       />
-      {open && results.length > 0 && (
+      {showList && (
         <ul className="absolute z-20 mt-1.5 max-h-72 w-full overflow-auto rounded-[11px] border border-[var(--bb-stroke)] bg-[var(--bb-card)] shadow-xl">
           {results.map((p, i) => (
             <li key={p.id}>
@@ -170,6 +194,40 @@ export function PlayerSearch({
               </button>
             </li>
           ))}
+          {canAddCustom && (
+            <li className={results.length ? "border-t border-[var(--bb-stroke)]" : ""}>
+              <button
+                type="button"
+                onMouseEnter={() => setActive(customIndex)}
+                onClick={chooseCustom}
+                className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-[var(--bb-text)] ${
+                  active === customIndex
+                    ? "bg-[rgba(63,224,129,0.12)]"
+                    : "hover:bg-[var(--bb-card-2)]"
+                }`}
+              >
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  className="h-4 w-4 shrink-0 text-[var(--bb-muted-2)]"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span className="min-w-0 flex-1 truncate">
+                  Draft{" "}
+                  <span className="font-semibold">&ldquo;{custom}&rdquo;</span>
+                </span>
+                <span className="ml-3 shrink-0 text-xs text-[var(--bb-muted)]">
+                  Write-in
+                </span>
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>

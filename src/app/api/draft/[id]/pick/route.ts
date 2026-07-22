@@ -5,9 +5,11 @@ import { clockPick, isComplete, pickToCell, totalPicks } from "@/lib/draftLogic"
 
 export const runtime = "nodejs";
 
-// POST /api/draft/[id]/pick { playerId, pickNumber? } — draft a player. Without
-// pickNumber the pick on the clock is filled; with it, a specific open pick
-// (the one on the clock, or a previously skipped one) is filled out of order.
+// POST /api/draft/[id]/pick { playerId? | name?, pickNumber? } — draft a player.
+// Pass playerId to draft a DB player, or name to write in a custom pick not in
+// the player DB. Without pickNumber the pick on the clock is filled; with it, a
+// specific open pick (the clock, or a previously skipped one) is filled out of
+// order.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -16,16 +18,19 @@ export async function POST(
   if (!(await canEdit(id)))
     return NextResponse.json({ error: "Not authorized to edit this draft." }, { status: 403 });
 
-  let playerId: number;
+  let playerId: number | null;
+  let customName: string | null;
   let targetPick: number | null;
   try {
     const body = await req.json();
-    playerId = Number(body?.playerId);
+    playerId = body?.playerId == null ? null : Number(body.playerId);
+    customName = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : null;
     targetPick = body?.pickNumber == null ? null : Number(body.pickNumber);
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
-  if (!playerId) return NextResponse.json({ error: "A player is required." }, { status: 400 });
+  if (!playerId && !customName)
+    return NextResponse.json({ error: "A player is required." }, { status: 400 });
 
   const db = getDb();
   const [draft] = await db`
@@ -59,10 +64,23 @@ export async function POST(
   if (!Number.isInteger(targetPick) || !isFillable(targetPick))
     return NextResponse.json({ error: "That pick isn't open to fill." }, { status: 409 });
 
-  const [player] = await db`
-    select id, name, position, team from players where id = ${playerId}
-  `;
-  if (!player) return NextResponse.json({ error: "Player not found." }, { status: 404 });
+  // A written-in name has no DB row; otherwise resolve the DB player so the
+  // denormalized name/position/team come from the canonical record.
+  let player: {
+    id: number | null;
+    name: string;
+    position: string | null;
+    team: string | null;
+  };
+  if (playerId) {
+    const [row] = await db`
+      select id, name, position, team from players where id = ${playerId}
+    `;
+    if (!row) return NextResponse.json({ error: "Player not found." }, { status: 404 });
+    player = { id: row.id, name: row.name, position: row.position, team: row.team };
+  } else {
+    player = { id: null, name: customName as string, position: null, team: null };
+  }
 
   const { round, slot: snakeSlot } = pickToCell(targetPick, draft.num_slots);
 
